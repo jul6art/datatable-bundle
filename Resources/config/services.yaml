@@ -1,0 +1,22 @@
+services:
+    # Services whose dependencies are all guaranteed go here, wired explicitly.
+    #
+    # Anything conditional — a brick that needs an optional package, or a service the
+    # application may not have — is registered from the extension or removed by a compiler
+    # pass instead. Cf. DependencyInjection/DatatableExtension.php.
+
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # Le socle des fournisseurs de configuration est abstrait : ce sont ses sous-classes, côté
+    # projet, qui sont des services. Il n'y a donc rien à déclarer pour lui.
+
+    # La colonne et le filtre inter-tenants. Les trois arguments sont posés par l'extension ;
+    # un `endpoint` vide signifie « application mono-tenant », et le service n'est alors jamais
+    # appelé.
+    Jul6Art\DatatableBundle\DataTable\AdminDataTableConfig:
+        arguments:
+            $tenantEndpoint: ''
+            $tenantLabelKey: 'datatable.col.organization'
+            $tenantLabelDomain: 'messages'

@@ -1,0 +1,52 @@
+{#
+    Les libellés dont TOUT tableau a besoin — à inclure DANS la balise `<table>` :
+
+        <table data-controller="{{ datatable_stimulus() }}"
+               {{ include('@Datatable/datatable/_translations.html.twig') }}
+               …>
+
+    Ce partial ne porte que le socle : la barre de filtres, le badge actif/inactif générique, les
+    messages d'erreur et de coalescence, et les libellés des actions de masse produits par
+    `datatable_bulk_translations()`.
+
+    Les cartes de statuts propres à un rendu (`erpQuoteStatusBadge`, `vehicleType`, `country`…)
+    n'y sont PAS : le gabarit qui en a besoin les demande explicitement, ce qui évite d'envoyer à
+    chaque page les libellés de tous les modules.
+
+        {{ include('@Datatable/datatable/_translations.html.twig', {
+            extra_translations: datatable_status_map(['erp_quote_status']),
+        }) }}
+
+    ⚠️ L'objet DOIT être imbriqué, pas à clés plates. Le mixin `translatable` descend l'arbre
+    segment par segment (`value?.[k]`), donc `{'a.b': '…'}` ne se résout jamais et `t('a.b')`
+    rend la clé brute.
+#}
+data-{{ datatable_stimulus() }}-translations-value="{{ {
+    datatable: {
+        'filters': 'datatable.filters'|trans({}, 'messages'),
+        'filter_apply': 'datatable.filter_apply'|trans({}, 'messages'),
+        'filter_reset': 'datatable.filter_reset'|trans({}, 'messages'),
+        'filter': {
+            'input_too_short': 'datatable.filter.input_too_short'|trans({}, 'messages'),
+            'searching': 'datatable.filter.searching'|trans({}, 'messages'),
+            'no_results': 'datatable.filter.no_results'|trans({}, 'messages'),
+        },
+        'status': {
+            'active': 'datatable.status.active'|trans({}, 'messages'),
+            'inactive': 'datatable.status.inactive'|trans({}, 'messages'),
+        },
+        'confirm': {
+            'title': 'datatable.confirm.title'|trans({}, 'messages'),
+            'message': 'datatable.confirm.message'|trans({}, 'messages'),
+            'confirm': 'datatable.confirm.confirm'|trans({}, 'messages'),
+            'cancel': 'datatable.confirm.cancel'|trans({}, 'messages'),
+        },
+        'error': {
+            'loading': 'datatable.error.loading'|trans({}, 'messages'),
+        },
+        'coalescence': {
+            'message': 'datatable.coalescence.message'|trans({}, 'messages'),
+            'refresh': 'datatable.coalescence.refresh'|trans({}, 'messages'),
+        },
+    },
+}|merge_recursive(datatable_bulk_translations())|merge_recursive(extra_translations|default({}))|json_encode|e('html_attr') }}"

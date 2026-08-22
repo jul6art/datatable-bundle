@@ -1,0 +1,70 @@
+/**
+ * Tooltip styles
+ * Used by ui--tooltip Stimulus controller
+ */
+
+.tooltip {
+    @apply fixed z-[200] px-2.5 py-1.5 text-xs font-medium text-white bg-slate-800 rounded-lg shadow-lg pointer-events-none;
+    @apply opacity-0 transition-opacity duration-150 ease-out;
+    max-width: 200px;
+    word-wrap: break-word;
+}
+
+.tooltip--visible {
+    @apply opacity-100;
+}
+
+/* Arrow via pseudo-element */
+.tooltip::after {
+    content: '';
+    @apply absolute w-0 h-0;
+    border: 5px solid transparent;
+}
+
+/* Top (default) — arrow at bottom center */
+.tooltip[data-position="top"] {
+    transform: translateX(-50%) translateY(-100%);
+}
+
+.tooltip[data-position="top"]::after {
+    @apply left-1/2 -translate-x-1/2;
+    top: 100%;
+    border-top-color: theme('colors.slate.800');
+    border-bottom: 0;
+}
+
+/* Bottom — arrow at top center */
+.tooltip[data-position="bottom"] {
+    transform: translateX(-50%);
+}
+
+.tooltip[data-position="bottom"]::after {
+    @apply left-1/2 -translate-x-1/2;
+    bottom: 100%;
+    border-bottom-color: theme('colors.slate.800');
+    border-top: 0;
+}
+
+/* Left — arrow at right center */
+.tooltip[data-position="left"] {
+    transform: translateX(-100%) translateY(-50%);
+}
+
+.tooltip[data-position="left"]::after {
+    left: 100%;
+    @apply top-1/2 -translate-y-1/2;
+    border-left-color: theme('colors.slate.800');
+    border-right: 0;
+}
+
+/* Right — arrow at left center */
+.tooltip[data-position="right"] {
+    transform: translateY(-50%);
+}
+
+.tooltip[data-position="right"]::after {
+    right: 100%;
+    @apply top-1/2 -translate-y-1/2;
+    border-right-color: theme('colors.slate.800');
+    border-left: 0;
+}

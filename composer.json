@@ -1,0 +1,88 @@
+{
+    "name": "jul6art/datatable-bundle",
+    "type": "symfony-bundle",
+    "description": "Symfony datatable bundle",
+    "homepage": "https://github.com/jul6art/datatable-bundle",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jul6Art",
+            "email": "admin@devinthehood.com",
+            "homepage": "https://devinthehood.com/"
+        }
+    ],
+    "require": {
+        "php": "^8.5",
+        "symfony/config": "^7.4 || ^8.0",
+        "symfony/dependency-injection": "^7.4 || ^8.0",
+        "symfony/http-kernel": "^7.4 || ^8.0",
+        "symfony/translation-contracts": "^3.4",
+        "symfony/yaml": "^7.4 || ^8.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.68",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-symfony": "^2.0",
+        "phpunit/phpunit": "^13.0",
+        "rector/rector": "^2.0",
+        "symfony/flex": "^2.4",
+        "symfony/framework-bundle": "^7.4 || ^8.0",
+        "symfony/phpunit-bridge": "^7.4 || ^8.0",
+        "symfony/security-csrf": "^7.4 || ^8.0",
+        "symfony/translation": "^7.4 || ^8.0",
+        "symfony/twig-bundle": "^7.4 || ^8.0",
+        "symfony/var-dumper": "^7.4 || ^8.0",
+        "twig/twig": "^3.28"
+    },
+    "autoload": {
+        "psr-4": {
+            "Jul6Art\\DatatableBundle\\": ""
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Jul6Art\\DatatableBundle\\Tests\\": "Tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "phpstan/extension-installer": true,
+            "symfony/flex": true
+        },
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.x-dev"
+        },
+        "symfony": {
+            "require": "7.4.*"
+        }
+    },
+    "scripts": {
+        "cs": "php-cs-fixer fix",
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "phpstan": "phpstan analyse --memory-limit=1G",
+        "rector": "rector process",
+        "rector-check": "rector process --dry-run",
+        "test": "phpunit",
+        "qa": [
+            "@cs-check",
+            "@rector-check",
+            "@phpstan",
+            "@test"
+        ],
+        "auto-scripts": {
+            "cache:clear": "symfony-cmd",
+            "assets:install %PUBLIC_DIR%": "symfony-cmd"
+        }
+    },
+    "suggest": {
+        "twig/twig": "Les deux partials et les trois extensions Twig (`datatable_stimulus()`, `datatable_bulk_translations()`, `datatable_status_map()`). Sans Twig, seule la moitié PHP du bundle — les fournisseurs de configuration — est enregistrée.",
+        "symfony/security-csrf": "Le partial `_csrf.html.twig` appelle `csrf_token()` : sans ce paquet, la fonction n'existe pas et le rendu échoue.",
+        "api-platform/core": "La table lit une collection API Platform ; les conventions de filtre (`?param[after]=`) que produisent les aides de configuration sont les siennes.",
+        "jul6art/api-bundle": "Les filtres que les colonnes et les filtres déclarés ici supposent côté serveur : `OrSearchFilter` pour la recherche globale, `CaseInsensitiveOrderFilter` pour le tri."
+    }
+}

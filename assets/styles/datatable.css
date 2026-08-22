@@ -1,0 +1,516 @@
+/**
+ * DataTables custom styles for Jul6art backoffice
+ * Compatible with DataTables v2 (dt-* class prefix + layout API)
+ */
+
+/* ── Wrapper ─────────────────────────────────────────── */
+
+.dt-container {
+    @apply w-full;
+}
+
+/* ── Layout rows (header / footer) ───────────────────── */
+
+.dt-layout-row {
+    @apply flex flex-wrap items-center justify-between gap-4 px-4 py-3;
+}
+
+.dt-layout-row:first-child {
+    @apply border-b border-slate-100 dark:border-slate-700;
+}
+
+.dt-layout-row:last-child {
+    @apply border-t border-slate-100 dark:border-slate-700;
+}
+
+.dt-layout-cell {
+    @apply flex items-center;
+}
+
+.dt-layout-full {
+    @apply w-full justify-center;
+}
+
+/* ── Top controls ────────────────────────────────────── */
+
+.dt-length {
+    @apply flex items-center gap-2;
+}
+
+.dt-length label {
+    @apply text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2 whitespace-nowrap;
+}
+
+.dt-length select {
+    @apply border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500;
+}
+
+.dt-search {
+    @apply flex items-center gap-2;
+}
+
+.dt-search label {
+    @apply hidden;
+}
+
+.dt-search input {
+    @apply border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500 w-48 sm:w-64;
+}
+
+/* ── Processing ──────────────────────────────────────── */
+
+.dt-processing {
+    @apply bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg px-6 py-4 text-slate-600 dark:text-slate-300 text-sm font-medium;
+}
+
+.dt-container .dt-processing {
+    @apply fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50;
+}
+
+/* ── Table ───────────────────────────────────────────── */
+
+table.dataTable {
+    @apply w-full text-sm border-collapse;
+    table-layout: auto;
+    min-width: 0;
+}
+
+table.dataTable thead th {
+    @apply text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/70;
+    @apply cursor-pointer select-none;
+}
+
+table.dataTable thead th:hover {
+    @apply bg-slate-100 dark:bg-slate-700;
+}
+
+/* Non-sortable columns */
+table.dataTable thead th.dt-orderable-none {
+    @apply cursor-default;
+}
+
+table.dataTable thead th.dt-orderable-none:hover {
+    @apply bg-slate-50/70 dark:bg-slate-800/70;
+}
+
+/* Sortable columns */
+table.dataTable thead th.dt-orderable-asc,
+table.dataTable thead th.dt-orderable-desc {
+    @apply relative pr-8;
+}
+
+/* Hide native DT sort indicator */
+table.dataTable thead th .dt-column-order {
+    @apply hidden;
+}
+
+/* Sort icons — FA7 */
+table.dataTable thead th.dt-orderable-asc::after,
+table.dataTable thead th.dt-orderable-desc::after {
+    --fa: "\f0dc";
+    font-family: var(--fa-style-family, 'Font Awesome 7 Free');
+    font-weight: 900;
+    content: var(--fa);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    @apply absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600 text-[10px];
+}
+
+table.dataTable thead th.dt-ordering-asc::after {
+    --fa: "\f0de" !important;
+    @apply text-accent-600;
+}
+
+table.dataTable thead th.dt-ordering-desc::after {
+    --fa: "\f0dd" !important;
+    @apply text-accent-600;
+}
+
+/* Cells */
+table.dataTable tbody td {
+    @apply px-4 py-3 border-b border-slate-100 dark:border-slate-700/50;
+}
+
+table.dataTable tbody tr {
+    @apply transition-colors;
+}
+
+table.dataTable tbody tr:hover {
+    @apply bg-slate-50/70 dark:bg-slate-700/30;
+}
+
+table.dataTable tbody tr:last-child td {
+    @apply border-b-0;
+}
+
+/* ── SSR tables (visual parity with datatables) ──────────
+ * Server-rendered SIRH lists that intentionally stay SSR (confidential
+ * §13/§16 data, self-service "mine" lists, portal directory — cf.
+ * claude_project.md) reuse the EXACT thead / cell / row treatment of
+ * `table.dataTable` so the two look identical. They are NOT sortable, so
+ * the header keeps the default cursor and no sort affordance.
+ * Pair with `_partials/_ssr_table.html.twig`. Rapport 2026-06-18-2 #design.
+ */
+
+table.ssr-datatable {
+    @apply w-full text-sm border-collapse;
+    table-layout: auto;
+    min-width: 0;
+}
+
+table.ssr-datatable thead th {
+    @apply text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/70;
+}
+
+/* Right-aligned header (actions / numeric columns) opt-in. */
+table.ssr-datatable thead th.ssr-col-right {
+    @apply text-right;
+}
+
+table.ssr-datatable tbody td {
+    @apply px-4 py-3 border-b border-slate-100 dark:border-slate-700/50;
+}
+
+table.ssr-datatable tbody tr {
+    @apply transition-colors;
+}
+
+table.ssr-datatable tbody tr:hover {
+    @apply bg-slate-50/70 dark:bg-slate-700/30;
+}
+
+table.ssr-datatable tbody tr:last-child td {
+    @apply border-b-0;
+}
+
+table.ssr-datatable td.ssr-col-right {
+    @apply text-right whitespace-nowrap;
+}
+
+/* ── Pagination ──────────────────────────────────────── */
+
+.dt-paging {
+    @apply flex items-center gap-1;
+}
+
+.dt-paging-button {
+    @apply px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer;
+}
+
+.dt-paging-button.current {
+    @apply bg-accent-600 text-white border-accent-600 hover:bg-accent-700;
+}
+
+.dt-paging-button.disabled {
+    @apply text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed hover:bg-transparent;
+}
+
+.dt-paging-button.previous,
+.dt-paging-button.next {
+    @apply font-medium;
+}
+
+/* ── Info ─────────────────────────────────────────────── */
+
+.dt-info {
+    @apply text-sm text-slate-500 dark:text-slate-400;
+}
+
+/* ── Empty state ─────────────────────────────────────── */
+
+.dt-empty {
+    @apply text-center py-12 text-slate-500 dark:text-slate-400;
+}
+
+/* ── Bulk selection ──────────────────────────────────── */
+
+.dt-bulk-bar {
+    @apply flex flex-wrap items-center gap-3 px-4 py-3 bg-accent-50 dark:bg-accent-900/30 border-b border-accent-200 dark:border-accent-800 text-sm;
+}
+
+.dt-bulk-bar.hidden {
+    display: none !important;
+}
+
+.dt-bulk-bar__count {
+    @apply font-medium text-accent-900 dark:text-accent-200;
+}
+
+.dt-bulk-select__container {
+    @apply w-[200px]
+}
+
+.dt-bulk-bar__select {
+    @apply rounded-lg border border-accent-300 dark:border-accent-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-accent-500;
+}
+
+.dt-bulk-bar__apply {
+    @apply px-3 py-1.5 text-sm;
+}
+
+.dt-bulk-bar__clear {
+    @apply ml-auto px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 underline decoration-dotted underline-offset-4 cursor-pointer bg-transparent border-none;
+}
+
+.dt-bulk-checkbox-col {
+    @apply w-8 text-center;
+}
+
+table.dataTable td.dt-bulk-checkbox-col,
+table.dataTable th.dt-bulk-checkbox-col {
+    @apply text-center align-middle;
+}
+
+.dt-bulk-select-row,
+.dt-bulk-select-all {
+    @apply w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent-600 focus:ring-2 focus:ring-accent-500 cursor-pointer;
+}
+
+/* ── Action buttons ──────────────────────────────────── */
+
+.action-btn {
+    @apply p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors inline-flex items-center justify-center;
+}
+
+/* ── Responsive child rows ───────────────────────────── */
+
+table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before,
+table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control:before {
+    @apply bg-accent-600 border-accent-600;
+}
+
+table.dataTable.dtr-inline.collapsed > tbody > tr.parent > td.dtr-control:before,
+table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th.dtr-control:before {
+    @apply bg-red-600 border-red-600;
+}
+
+table.dataTable > tbody > tr.child ul.dtr-details {
+    @apply list-none p-0 m-0;
+}
+
+table.dataTable > tbody > tr.child ul.dtr-details > li {
+    @apply border-b border-slate-100 dark:border-slate-700 px-4 py-2;
+}
+
+table.dataTable > tbody > tr.child span.dtr-title {
+    @apply font-medium text-slate-700 dark:text-slate-300 inline-block min-w-[120px];
+}
+
+table.dataTable > tbody > tr.child span.dtr-data {
+    @apply text-slate-600 dark:text-slate-400;
+}
+
+/* ── Filter row ──────────────────────────────────────── */
+
+.dt-filter-row th {
+    @apply px-2 py-2 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 align-top;
+}
+
+/* P1 (rapport 2026-05-20, ajusté) — filtre plage de dates (factures /
+   commandes / devis / tournées). Les deux inputs date sont empilés
+   verticalement (du au-dessus de au) pour gagner en largeur, et stylés
+   comme les selects de filtre (même hauteur 38px, même fond, même bordure). */
+.dt-filter-daterange {
+    @apply flex items-center gap-1;
+}
+
+.dt-filter-daterange__stack {
+    @apply flex flex-col gap-1 flex-1 min-w-0;
+}
+
+.dt-filter-date--range {
+    @apply h-[38px] w-full text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2 focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 transition-colors;
+}
+
+.dt-filter-daterange__clear {
+    @apply flex-shrink-0 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors text-sm leading-none p-1 rounded;
+}
+
+/* ── Mobile Card View ───────────────────────────────── */
+
+.dt-desktop-only {
+    display: none !important;
+}
+
+.dt-card-list {
+    @apply flex flex-col gap-3 py-3 px-3 w-full;
+}
+
+.dt-card {
+    @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden;
+}
+
+.dt-card-header {
+    @apply flex items-center justify-between gap-3 px-4 py-3 bg-slate-50/60 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-700;
+}
+
+.dt-card-primary {
+    @apply flex-1 min-w-0 font-medium text-sm text-slate-900 dark:text-slate-100;
+}
+
+.dt-card-primary a {
+    @apply text-slate-900 dark:text-slate-100 hover:text-accent-600 dark:hover:text-accent-400 transition-colors;
+}
+
+.dt-card-actions {
+    @apply flex items-center gap-1 flex-shrink-0;
+}
+
+.dt-card-body {
+    @apply divide-y divide-slate-100 dark:divide-slate-700;
+}
+
+.dt-card-field {
+    @apply flex items-start justify-between gap-3 px-4 py-2.5;
+}
+
+.dt-card-label {
+    @apply text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide flex-shrink-0 pt-0.5;
+}
+
+.dt-card-value {
+    @apply text-sm text-slate-900 dark:text-slate-200 text-right min-w-0;
+}
+
+/* Badges in cards — wrap nicely */
+.dt-card-value .badge {
+    @apply mb-0.5;
+}
+
+/* ── Mobile Filter Button ───────────────────────────── */
+
+.dt-mobile-filter-btn {
+    @apply hidden items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 relative;
+}
+
+.dt-mobile-filter-badge {
+    @apply inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-accent-600 text-white text-[10px] font-bold px-1;
+}
+
+@media (max-width: 1024px) {
+    .dt-mobile-filter-btn {
+        @apply inline-flex;
+    }
+}
+
+/* ── Mobile Filter Bottom Sheet ────────────────────── */
+
+.dt-mobile-filter-overlay {
+    @apply fixed inset-0 bg-slate-900/40 backdrop-blur-sm opacity-0 transition-opacity duration-200;
+    z-index: 9998;
+}
+
+.dt-mobile-filter-overlay.active {
+    @apply opacity-100;
+}
+
+.dt-mobile-filter-sheet {
+    @apply fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl translate-y-full transition-transform duration-300 ease-out;
+    z-index: 9999;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.dt-mobile-filter-sheet.active {
+    @apply translate-y-0;
+}
+
+.dt-mobile-filter-header {
+    @apply flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex-shrink-0;
+}
+
+.dt-mobile-filter-close {
+    @apply w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors;
+}
+
+.dt-mobile-filter-body {
+    @apply px-5 py-4 overflow-y-auto flex-1 space-y-4;
+}
+
+.dt-mobile-filter-field {
+    @apply space-y-1.5;
+}
+
+.dt-mobile-filter-label {
+    @apply block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide;
+}
+
+.dt-mobile-filter-select,
+.dt-mobile-filter-input {
+    /* P1 (rapport 2026-05-21) — hauteur réduite (py-2 ≈ 38px) pour s'aligner
+       sur le Select2 single (h-[38px]) et ne pas paraître trop haut. */
+    @apply w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-700 shadow-sm;
+    @apply focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500;
+}
+
+.dt-mobile-filter-footer {
+    @apply flex gap-3 px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex-shrink-0;
+}
+
+.dt-mobile-filter-reset {
+    @apply flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors hover:bg-slate-50 dark:hover:bg-slate-600;
+}
+
+.dt-mobile-filter-apply {
+    @apply flex-1 px-4 py-2.5 text-sm font-medium text-white bg-accent-600 rounded-lg transition-colors hover:bg-accent-700 shadow-sm;
+}
+
+/* Select2 inside mobile sheet */
+.dt-mobile-filter-sheet .select2-container {
+    @apply w-full;
+}
+
+.dt-mobile-filter-sheet .select2-container--default .select2-selection--single {
+    @apply border border-slate-300 rounded-lg h-auto py-2 px-3;
+}
+
+/* ── Responsive: < 1024px (mobile + tablet, card view) ─
+ * The card list takes over below "large" screens because the hybrid
+ * 800–1100px range crushes the desktop table (too many columns, search
+ * + filters row overflows). Cards stay legible down to phone widths.
+ */
+
+@media (max-width: 1024px) {
+    /* Layout rows stack vertically */
+    .dt-layout-row {
+        @apply flex-col items-stretch gap-3 px-3 py-2;
+    }
+
+    .dt-layout-cell {
+        @apply w-full;
+    }
+
+    .dt-layout-cell.dt-layout-end {
+        @apply justify-start;
+    }
+
+    /* Search full width */
+    .dt-search {
+        @apply w-full flex-col items-start gap-1;
+    }
+
+    .dt-search input {
+        @apply w-full min-w-0;
+    }
+
+    /* Pagination centered */
+    .dt-paging {
+        @apply justify-center w-full flex-wrap;
+    }
+
+    .dt-paging-button {
+        @apply min-w-[1.75rem] h-7 px-2 text-xs;
+    }
+
+    .dt-info {
+        @apply text-center w-full text-xs;
+    }
+
+    /* Hide filter row — global search is enough below desktop */
+    .dt-filter-row {
+        @apply hidden;
+    }
+}
+
+/* On desktop (≥ 1024px), card list is hidden by default (JS toggles via .hidden class) */

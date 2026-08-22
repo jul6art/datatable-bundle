@@ -1,0 +1,160 @@
+/**
+ * DataTables custom styling overrides for Tailwind theme
+ * Compatible with DataTables v2 (dt-* class prefix + layout API)
+ * Imported after _datatable.css for final overrides
+ */
+
+/* Search input enhanced */
+.dt-search input[type="search"] {
+    @apply block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm transition-colors focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/20;
+}
+
+/* Length select enhanced */
+.dt-length select {
+    @apply rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 shadow-sm transition-colors focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/20;
+}
+
+.dt-length label {
+    @apply dark:text-slate-300;
+}
+
+/* Pagination enhanced */
+.dt-paging-button {
+    @apply inline-flex items-center justify-center min-w-[2rem] h-8 px-3 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg transition-all hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-sm;
+}
+
+.dt-paging-button.current {
+    @apply bg-accent-600 text-white border-accent-600 shadow-sm hover:bg-accent-700 hover:border-accent-700;
+}
+
+.dt-paging-button.disabled {
+    @apply opacity-40 cursor-not-allowed hover:bg-white dark:hover:bg-slate-800 hover:border-slate-200 dark:hover:border-slate-600 hover:shadow-none;
+}
+
+/* Table head enhanced */
+table.dataTable thead th {
+    @apply px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/80;
+}
+
+/* Table body enhanced */
+table.dataTable tbody td {
+    @apply px-4 py-3.5 text-sm text-slate-900 dark:text-slate-200 border-b border-slate-100/80 dark:border-slate-700/50;
+}
+
+table.dataTable tbody tr {
+    @apply transition-colors hover:bg-accent-50/30 dark:hover:bg-accent-900/10;
+}
+
+/* Processing indicator enhanced */
+.dt-processing {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-slate-900/10 dark:bg-slate-900/40 backdrop-blur-sm;
+}
+
+.dt-processing::after {
+    content: '';
+    @apply block w-8 h-8 border-4 border-accent-600 border-t-transparent rounded-full animate-spin;
+}
+
+/* Compact overrides (mobile + tablet up to desktop breakpoint) */
+@media (max-width: 1024px) {
+    .dt-search input[type="search"] {
+        @apply w-full;
+    }
+
+    .dt-paging-button {
+        @apply min-w-[1.75rem] h-7 px-2 text-xs;
+    }
+}
+
+/*
+ * Soft-deleted row marker — applied by datatable_controller.js createdRow
+ * when the server returns `deletedAt != null`. Only super-admins see these
+ * rows (the SoftDeleteFilter stays active for everyone else).
+ */
+.datatable-row-deleted > td {
+    @apply bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400;
+}
+
+.datatable-row-deleted > td:first-child {
+    @apply border-l-4 border-red-500 dark:border-red-400;
+}
+
+/* Mobile / compact card variant. The card list replaces the table layout
+   below 1024px; the deletion marker has to live on the wrapper card so
+   it stays visible — applying it on inner `<td>`s wouldn't help here. */
+.dt-card--deleted {
+    @apply bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400;
+}
+.dt-card--deleted .dt-card-primary,
+.dt-card--deleted .dt-card-value,
+.dt-card--deleted .dt-card-label {
+    @apply text-red-700 dark:text-red-400;
+}
+
+/* ----------------------------------------------------------------------
+ * P4 (rapport 2026-05-17-2, revu 2026-05-18) — pastille « expand » sur
+ * les rows ayant du contenu masqué par DataTables Responsive.
+ *
+ * Contraintes UX :
+ *  - la cellule `dtr-control` est la même que la bulk-checkbox cell :
+ *    on ne peint donc PAS par-dessus la checkbox — la pastille est
+ *    positionnée à droite de la cellule (padding-right), pas left ;
+ *  - elle ne s'affiche QUE quand la row a effectivement une cellule
+ *    `dtr-hidden` (`tr:has(td.dtr-hidden)`), pour ne pas polluer les
+ *    viewports larges où tout rentre déjà ;
+ *  - chevron Unicode (▸ / ▾ via rotation) pour éviter le carré vide
+ *    si Font Awesome n'est pas encore chargé côté `::before`.
+ * --------------------------------------------------------------------*/
+table.dataTable.dtr-inline.collapsed > tbody > tr:has(td.dtr-hidden) {
+    cursor: pointer;
+}
+
+table.dataTable.dtr-inline.collapsed > tbody > tr:has(td.dtr-hidden) > td.dtr-control {
+    position: relative;
+    padding-right: 26px;
+}
+
+table.dataTable.dtr-inline.collapsed > tbody > tr:has(td.dtr-hidden) > td.dtr-control::after {
+    content: "▸";
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    width: 18px;
+    height: 18px;
+    margin-top: -9px;
+    line-height: 18px;
+    text-align: center;
+    background-color: #eef2ff;
+    color: #4f46e5;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 700;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.2s ease;
+}
+
+.dark table.dataTable.dtr-inline.collapsed > tbody > tr:has(td.dtr-hidden) > td.dtr-control::after {
+    background-color: rgba(99, 102, 241, 0.18);
+    color: #a5b4fc;
+}
+
+table.dataTable.dtr-inline.collapsed > tbody > tr:has(td.dtr-hidden):hover > td.dtr-control::after {
+    background-color: #c7d2fe;
+    color: #3730a3;
+}
+
+table.dataTable.dtr-inline.collapsed > tbody > tr.dtr-expanded:has(td.dtr-hidden) > td.dtr-control::after {
+    transform: rotate(90deg);
+    background-color: #4f46e5;
+    color: #ffffff;
+}
+
+/* Numeric columns alignment (rapport 2026-05-23 § C.1).
+ * Applied automatically by `buildColumns()` when col.render is one of
+ * `currency`, `number2`, `percent0`. Right-align + tabular-nums so the
+ * digits line up vertically across rows, making large amounts readable
+ * at a glance. */
+.dataTable td.dt-cell-numeric,
+.dataTable th.dt-cell-numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}

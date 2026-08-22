@@ -1,0 +1,21 @@
+# Chargé par l'extension uniquement quand Twig est présent : `twig/twig` est un `suggest`, pas un
+# `require`. La moitié PHP du bundle — les fournisseurs de configuration — sert aussi à une
+# application qui rend ses tableaux autrement.
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    Jul6Art\DatatableBundle\Twig\DataTableBulkExtension:
+        arguments:
+            $actionTypes: []
+
+    Jul6Art\DatatableBundle\Twig\DataTableStatusMapExtension:
+        arguments:
+            $maps: []
+
+    Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension:
+        arguments:
+            $stimulusIdentifier: 'datatable'
+            $singleTokenId: 'datatable_action'
+            $bulkTokenId: 'bulk_action'

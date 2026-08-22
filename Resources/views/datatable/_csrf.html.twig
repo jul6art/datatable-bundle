@@ -1,0 +1,21 @@
+{#
+    Les deux jetons CSRF d'un tableau — à inclure DANS la balise `<table>`, là où le contrôleur
+    Stimulus lit ses valeurs :
+
+        <table data-controller="{{ datatable_stimulus() }}"
+               {{ include('@Datatable/datatable/_csrf.html.twig') }}
+               …>
+
+    - jeton « bulk »   → validé par les routes /bulk-* (BulkActionRunner du core-bundle)
+    - jeton « single » → validé par les POST par ligne (delete, restore, activate, deactivate)
+
+    Le jeton par ligne est partagé par tout le tableau, et c'est assumé : le JavaScript ne peut pas
+    en frapper un par identifiant. Moins strict qu'un jeton par entité, équivalent en pratique dès
+    lors que l'action est déjà gardée par un `#[IsGranted]` et par un voter.
+
+    Le préfixe des attributs suit l'identifiant Stimulus, qui appartient à l'application : un
+    partial qui l'écrirait en dur émettrait des attributs que le contrôleur ne lit pas, et un
+    contrôleur Stimulus sans valeurs ne tombe pas en erreur — il rend un tableau vide.
+#}
+data-{{ datatable_stimulus() }}-bulk-csrf-value="{{ csrf_token(datatable_csrf_token_id('bulk')) }}"
+data-{{ datatable_stimulus() }}-single-csrf-value="{{ csrf_token(datatable_csrf_token_id('single')) }}"
