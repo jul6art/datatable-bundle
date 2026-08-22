@@ -1,4 +1,5 @@
 import { Controller } from '@hotwired/stimulus';
+import { liveFormParams } from '../select2-config';
 
 /**
  * Select2 Controller — Enhanced select inputs.
@@ -96,17 +97,11 @@ export default class extends Controller {
                     const searchParam = this.searchKeyValue || this.textKeyValue;
                     query[searchParam] = params.term || '';
                     query.size = 20;
-                    // Dynamic customer-country eligibility (rapport 2026-06-06-4):
-                    // a parent document form publishes the selected customer's
-                    // ISO country in `data-eligible-country`; product pickers add
-                    // it as a SECOND `eligibleCountry[]` so the list also respects
-                    // the customer's allowed/forbidden countries (the org country
-                    // is already baked into the base URL). Read LIVE per search —
-                    // no re-init needed when the customer changes.
-                    const extraCountry = this.element.closest('form')?.dataset?.eligibleCountry;
-                    if (extraCountry && this.urlValue.includes('/api/products')) {
-                        query['eligibleCountry[]'] = extraCountry;
-                    }
+                    // Extra parameters published by the enclosing form, read LIVE at each search
+                    // so a change elsewhere in the form takes effect without re-initialising the
+                    // widget. What they are is the application's business — see
+                    // `configureSelect2()`.
+                    Object.assign(query, this._liveFormParams());
                     // Dependent picker: filter by the live value of the parent select.
                     if (this.dependsOnValue && this.dependsParamValue) {
                         const parentValue = this._dependsOnElement()?.value;
@@ -158,5 +153,32 @@ export default class extends Controller {
         const base = item[this.textKeyValue] ?? item.name ?? String(item.id);
         const secondary = this.secondaryKeyValue ? item[this.secondaryKeyValue] : null;
         return secondary ? `${base} (${secondary})` : base;
+    }
+
+    /**
+     * Reads the live parameters an application declared through `configureSelect2()`, from the
+     * dataset of the form this widget sits in.
+     *
+     * @returns {Record<string, string>}
+     */
+    _liveFormParams() {
+        const form = this.element.closest('form');
+        if (!form) {
+            return {};
+        }
+
+        const params = {};
+        for (const rule of liveFormParams()) {
+            if (rule.whenUrlIncludes && !this.urlValue.includes(rule.whenUrlIncludes)) {
+                continue;
+            }
+
+            const value = form.dataset?.[rule.datasetKey];
+            if (value) {
+                params[rule.queryKey] = value;
+            }
+        }
+
+        return params;
     }
 }
