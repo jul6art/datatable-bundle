@@ -1168,6 +1168,12 @@ export default class extends Controller {
     }
 
     _destroyFilters() {
+        // Les écouteurs « clic extérieur » des filtres de plage vivent sur `document` : ils
+        // survivraient au filtre qui les a posés, et la ligne de filtres se reconstruit à chaque
+        // redraw. Les retirer ici est ce qui empêche l'accumulation.
+        (this._dateRangeCleanups || []).forEach(cleanup => cleanup());
+        this._dateRangeCleanups = [];
+
         if (!window.jQuery) return;
         const $ = window.jQuery;
         this.element.querySelectorAll('.dt-filter-select').forEach(select => {
@@ -1178,31 +1184,23 @@ export default class extends Controller {
     }
 
     _createDateRangeFilter(th, config) {
-        // P1 (report 2026-05-20) — date-range filter. The two <input type="date">
-        // are STACKED vertically (from above to) to save column width, and styled
-        // to match the Select2 single filters (same height, same white/dark
-        // background, same border/rounding). A clear (x) button shows only when at
-        // least one bound is set. Binding to `<param>[after]` / `<param>[before]`
-        // (API Platform DateFilter convention) is unchanged.
+        // UN SEUL champ, et non deux inputs empilés : deux `<input type="date">` l'un sur
+        // l'autre doublaient la hauteur de la ligne de filtres pour une colonne qui, la plupart
+        // du temps, n'est pas filtrée. Le champ affiche la plage en clair et ouvre un popover
+        // avec les deux bornes. Le binding reste `<param>[after]` / `<param>[before]`
+        // (convention DateFilter d'API Platform) : rien ne change côté serveur.
         const wrapper = document.createElement('div');
         wrapper.className = 'dt-filter-daterange';
 
-        const stack = document.createElement('div');
-        stack.className = 'dt-filter-daterange__stack';
+        const field = document.createElement('button');
+        field.type = 'button';
+        field.className = 'dt-filter-daterange__field';
+        field.setAttribute('aria-haspopup', 'dialog');
+        field.setAttribute('aria-expanded', 'false');
 
-        const inputClass = 'dt-filter-date dt-filter-date--range';
-
-        const fromInput = document.createElement('input');
-        fromInput.type = 'date';
-        fromInput.className = inputClass;
-        fromInput.dataset.filterParam = config.param + '[after]';
-        fromInput.value = this._civilDateFromIso(this._activeFilters[fromInput.dataset.filterParam]);
-
-        const toInput = document.createElement('input');
-        toInput.type = 'date';
-        toInput.className = inputClass;
-        toInput.dataset.filterParam = config.param + '[before]';
-        toInput.value = this._civilDateFromIso(this._activeFilters[toInput.dataset.filterParam]);
+        const label = document.createElement('span');
+        label.className = 'dt-filter-daterange__value';
+        field.appendChild(label);
 
         const clearBtn = document.createElement('button');
         clearBtn.type = 'button';
@@ -1211,8 +1209,53 @@ export default class extends Controller {
         clearBtn.title = this.t('datatable.filter_reset');
         clearBtn.setAttribute('aria-label', this.t('datatable.filter_reset'));
 
-        const syncClearVisibility = () => {
-            clearBtn.style.visibility = (fromInput.value || toInput.value) ? 'visible' : 'hidden';
+        const popover = document.createElement('div');
+        popover.className = 'dt-filter-daterange__popover';
+        popover.setAttribute('role', 'dialog');
+        popover.hidden = true;
+
+        const makeBound = (suffix, labelKey) => {
+            const row = document.createElement('label');
+            row.className = 'dt-filter-daterange__bound';
+
+            const caption = document.createElement('span');
+            caption.textContent = this.t(labelKey);
+            row.appendChild(caption);
+
+            const input = document.createElement('input');
+            input.type = 'date';
+            input.className = 'dt-filter-date dt-filter-date--range';
+            input.dataset.filterParam = config.param + suffix;
+            input.value = this._civilDateFromIso(this._activeFilters[input.dataset.filterParam]);
+            row.appendChild(input);
+
+            popover.appendChild(row);
+
+            return input;
+        };
+
+        const fromInput = makeBound('[after]', 'datatable.daterange.from');
+        const toInput = makeBound('[before]', 'datatable.daterange.to');
+
+        // Le libellé dit la plage telle qu'elle est réellement bornée : une seule borne posée
+        // donne « depuis le … » ou « jusqu'au … », pas une plage à moitié vide.
+        const renderLabel = () => {
+            const from = fromInput.value ? this._formatCivilDate(fromInput.value) : '';
+            const to = toInput.value ? this._formatCivilDate(toInput.value) : '';
+
+            if (from && to) {
+                label.textContent = from + ' → ' + to;
+            } else if (from) {
+                label.textContent = this.t('datatable.daterange.since') + ' ' + from;
+            } else if (to) {
+                label.textContent = this.t('datatable.daterange.until') + ' ' + to;
+            } else {
+                label.textContent = this.t('datatable.daterange.placeholder');
+            }
+
+            const isSet = Boolean(from || to);
+            field.classList.toggle('dt-filter-daterange__field--set', isSet);
+            clearBtn.style.visibility = isSet ? 'visible' : 'hidden';
         };
 
         const apply = () => {
@@ -1224,9 +1267,36 @@ export default class extends Controller {
                     delete this._activeFilters[input.dataset.filterParam];
                 }
             }
-            syncClearVisibility();
+            renderLabel();
             this.dataTable.ajax.reload();
         };
+
+        const closePopover = () => {
+            popover.hidden = true;
+            field.setAttribute('aria-expanded', 'false');
+        };
+
+        // Le clic extérieur ferme, et l'écouteur se retire avec la table : un filtre reconstruit
+        // à chaque redraw laisserait sinon autant d'écouteurs orphelins sur `document`.
+        const onDocumentClick = (event) => {
+            if (!wrapper.contains(event.target)) {
+                closePopover();
+            }
+        };
+        document.addEventListener('click', onDocumentClick);
+        this._dateRangeCleanups = this._dateRangeCleanups || [];
+        this._dateRangeCleanups.push(() => document.removeEventListener('click', onDocumentClick));
+
+        field.addEventListener('click', () => {
+            popover.hidden = !popover.hidden;
+            field.setAttribute('aria-expanded', popover.hidden ? 'false' : 'true');
+        });
+        popover.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closePopover();
+                field.focus();
+            }
+        });
 
         fromInput.addEventListener('change', apply);
         toInput.addEventListener('change', apply);
@@ -1236,13 +1306,21 @@ export default class extends Controller {
             apply();
         });
 
-        syncClearVisibility();
+        renderLabel();
 
-        stack.appendChild(fromInput);
-        stack.appendChild(toInput);
-        wrapper.appendChild(stack);
+        wrapper.appendChild(field);
         wrapper.appendChild(clearBtn);
+        wrapper.appendChild(popover);
         th.appendChild(wrapper);
+    }
+
+    /** `YYYY-MM-DD` → date locale courte, dans la langue de la table. */
+    _formatCivilDate(civil) {
+        const [year, month, day] = civil.split('-').map(Number);
+
+        return new Date(year, month - 1, day).toLocaleDateString(this.languageValue || undefined, {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+        });
     }
 
     // ── Date timezone helpers (report 2026-05-23 § B.4) ────────

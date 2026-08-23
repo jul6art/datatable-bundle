@@ -59,4 +59,37 @@ final class StylesheetTest extends TestCase
     {
         return (string) file_get_contents(\dirname(__DIR__, 2).'/assets/styles/'.$name);
     }
+
+    /** Un asset non-CSS du bundle, chemin relatif à `assets/`. */
+    private static function readAsset(string $path): string
+    {
+        return (string) file_get_contents(\dirname(__DIR__, 2).'/assets/'.$path);
+    }
+
+    /**
+     * Le filtre de plage de dates tient sur UN champ.
+     *
+     * Deux `<input type="date">` empilés doublaient la hauteur de TOUTE la ligne de filtres —
+     * pour une colonne qui, la plupart du temps, n'est pas filtrée (signalé le 2026-08-23). Le
+     * champ unique ouvre un popover ; ce test fige la structure, faute de navigateur pour la
+     * vérifier.
+     */
+    public function testTheDateRangeFilterIsASingleField(): void
+    {
+        $css = self::read('datatable.css');
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertStringContainsString('.dt-filter-daterange__field', $css);
+        self::assertStringContainsString('.dt-filter-daterange__popover', $css);
+        self::assertStringNotContainsString('__stack', $css, 'La pile verticale est ce qui a été remplacé.');
+
+        self::assertStringContainsString('dt-filter-daterange__popover', $js);
+        self::assertStringNotContainsString('stack.appendChild', $js);
+        // Le contrat serveur ne bouge pas : les deux bornes DateFilter restent celles envoyées.
+        self::assertStringContainsString("config.param + '[after]'", $js);
+        self::assertStringContainsString("config.param + '[before]'", $js);
+        // Un écouteur posé sur `document` par un filtre reconstruit à chaque redraw doit être
+        // retiré, sinon ils s'accumulent silencieusement.
+        self::assertStringContainsString('_dateRangeCleanups', $js);
+    }
 }
