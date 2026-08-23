@@ -92,4 +92,21 @@ final class StylesheetTest extends TestCase
         // retiré, sinon ils s'accumulent silencieusement.
         self::assertStringContainsString('_dateRangeCleanups', $js);
     }
+
+    /**
+     * Le menu d'actions par ligne appelle `window._toggleDtDropdown` dans son markup inline. Le
+     * bundle qui rend ce markup DOIT fournir la fonction : sans elle, le bouton ⋮ s'affiche et ne
+     * fait rien — pas d'erreur, pas d'indice, une liste qui semble n'avoir aucune action
+     * (signalé sur wovex le 2026-08-23 ; la fonction n'existait que dans le `app.js` de superp).
+     */
+    public function testTheActionsDropdownShipsItsBehaviour(): void
+    {
+        $controller = self::readAsset('controllers/datatable_controller.js');
+        $service = self::readAsset('services/dropdown.js');
+
+        self::assertStringContainsString('window._toggleDtDropdown(this)', $controller, 'Le markup appelle la fonction…');
+        self::assertStringContainsString('installActionsDropdown()', $controller, '…et le contrôleur doit l\'installer.');
+        self::assertStringContainsString('window._toggleDtDropdown =', $service);
+        self::assertStringContainsString('_positionDtDropdown', $service);
+    }
 }

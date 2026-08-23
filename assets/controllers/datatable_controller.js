@@ -4,6 +4,7 @@ import { useBlockable } from '../mixins/blockable';
 import iriResolver from '../services/iri-resolver';
 import mercureBus from '../services/mercure-bus';
 import { getRegisteredRenderers } from '../renderers';
+import { installActionsDropdown } from '../services/dropdown';
 
 /**
  * The server-driven table: pagination, sorting, search, filters, per-row and bulk actions, live
@@ -70,6 +71,9 @@ export default class extends Controller {
     };
 
     connect() {
+        // Le markup des actions en menu appelle `window._toggleDtDropdown` : la fonction est
+        // installée ici, sinon le bouton ⋮ rend et ne fait rien.
+        installActionsDropdown();
         useTranslatable(this);
         useBlockable(this);
         this._activeFilters = {};
