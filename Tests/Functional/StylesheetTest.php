@@ -81,6 +81,9 @@ final class StylesheetTest extends TestCase
 
         self::assertStringContainsString('.dt-filter-daterange__field', $css);
         self::assertStringContainsString('.dt-filter-daterange__popover', $css);
+        // Sans cette règle, le `display: flex` du popover bat le `[hidden] { display: none }` du
+        // navigateur et le popover reste ouvert en permanence, par-dessus la colonne voisine.
+        self::assertStringContainsString('.dt-filter-daterange__popover[hidden]', $css);
         self::assertStringNotContainsString('__stack', $css, 'La pile verticale est ce qui a été remplacé.');
 
         self::assertStringContainsString('dt-filter-daterange__popover', $js);
