@@ -474,8 +474,21 @@ table.dataTable > tbody > tr.child span.dtr-data {
  * portal themselves to the body, so anything below that opens *behind* a filter the user just used.
  */
 .dt-prefs-panel {
-    @apply absolute right-0 top-full mt-1.5 w-64 p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-xl text-left;
+    @apply absolute right-0 top-full mt-1.5 w-64 max-w-[calc(100vw-2rem)] p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-xl text-left;
     z-index: 120;
+}
+
+/*
+ * Anchored on its LEFT edge instead, when right-anchoring would push the panel outside the table's
+ * own box.
+ *
+ * That is what happens as soon as the toolbar wraps: the buttons end up flush left, and a 16rem
+ * panel hanging off their right edge extends past the left of the screen. The class is put on by
+ * measurement in `_anchorPanel()` and not by a media query — the row wraps on CONTENT width, so
+ * there is no breakpoint to key it on.
+ */
+.dt-prefs-panel--start {
+    @apply right-auto left-0;
 }
 
 .dt-prefs-head {

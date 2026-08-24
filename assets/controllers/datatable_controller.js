@@ -646,6 +646,31 @@ export default class extends Controller {
 
         if (kind === 'columns') this._renderColumnPanel();
         else this._renderViewPanel();
+
+        // After rendering: the panel has to be laid out before it can be measured.
+        this._anchorPanel(panel);
+    }
+
+    /**
+     * Right-anchored by default, left-anchored when that would push the panel out of the table.
+     *
+     * A dropdown hanging off the RIGHT edge of its button extends leftwards — which is correct while
+     * the button sits on the right of the toolbar, and wrong the moment the toolbar wraps and the
+     * buttons end up flush left: a 16rem panel then reaches past the left of the screen.
+     *
+     * Decided by MEASUREMENT and not by a media query: `.dt-layout-row` wraps on content width, so
+     * there is no breakpoint to key this on — the same viewport wraps or does not depending on how
+     * long the "rows per page" label is in the current locale.
+     */
+    _anchorPanel(panel) {
+        panel.classList.remove('dt-prefs-panel--start');
+
+        const bounds = this.element.closest('.dt-container')?.getBoundingClientRect();
+        if (!bounds) return;
+
+        if (panel.getBoundingClientRect().left < bounds.left) {
+            panel.classList.add('dt-prefs-panel--start');
+        }
     }
 
     _closePanels() {
@@ -1084,7 +1109,13 @@ export default class extends Controller {
         // A debounced window listener catches those edge cases.
         this._onWindowResize = () => {
             if (this._resizeRaf) cancelAnimationFrame(this._resizeRaf);
-            this._resizeRaf = requestAnimationFrame(() => this._syncFilterRowVisibility());
+            this._resizeRaf = requestAnimationFrame(() => {
+                this._syncFilterRowVisibility();
+                // A resize with a panel open changes which side it may hang off — the toolbar may
+                // have just wrapped underneath it.
+                const open = this._openPanel ? this._panelElement(this._openPanel) : null;
+                if (open) this._anchorPanel(open);
+            });
         };
         window.addEventListener('resize', this._onWindowResize);
     }

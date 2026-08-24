@@ -203,6 +203,28 @@ final class StylesheetTest extends TestCase
         self::assertMatchesRegularExpression('/\.dt-layout-cell:has\(\.dt-prefs-group\)\s*\{[^}]*flex-wrap/', $css);
     }
 
+    /**
+     * Un panneau ancré à droite déborde par la gauche dès que la barre d'outils passe à la ligne.
+     *
+     * Le menu déroulant pend sous le bord DROIT de son bouton, donc il s'étend vers la gauche : juste
+     * tant que le bouton est à droite de la barre, faux dès que la barre se replie et que les boutons
+     * se retrouvent collés à gauche — un panneau de 16rem sort alors de l'écran (signalé le
+     * 2026-08-24). Décidé par MESURE et non par media query : `.dt-layout-row` se replie selon la
+     * largeur du CONTENU, donc il n'y a pas de point de rupture sur lequel s'accrocher.
+     */
+    public function testThePanelFlipsItsAnchorRatherThanLeavingTheTable(): void
+    {
+        $css = self::read('datatable.css');
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertMatchesRegularExpression('/\.dt-prefs-panel--start\s*\{[^}]*right-auto[^}]*left-0/', $css);
+        // Un dernier filet : sur un écran plus étroit que le panneau, aucun ancrage ne suffit.
+        self::assertMatchesRegularExpression('/\.dt-prefs-panel\s*\{[^}]*max-w-\[calc\(100vw-2rem\)\]/', $css);
+
+        self::assertStringContainsString('_anchorPanel(panel)', $js);
+        self::assertStringContainsString('panel.getBoundingClientRect().left < bounds.left', $js);
+    }
+
     private static function read(string $name): string
     {
         return (string) file_get_contents(\dirname(__DIR__, 2).'/assets/styles/'.$name);
