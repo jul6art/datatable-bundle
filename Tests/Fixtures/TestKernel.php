@@ -19,6 +19,7 @@ use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
 use Symfony\Component\HttpKernel\Kernel;
+use Psr\Log\NullLogger;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
 
 /**
@@ -112,6 +113,27 @@ final class TestKernel extends Kernel
     #[\Override]
     protected function build(ContainerBuilder $container): void
     {
+        // Le journal du kernel est mis au silence.
+        //
+        // `ErrorListener` écrit « Uncaught PHP Exception … » par le service `logger`, et les tests
+        // qui EXIGENT un 404 ou un 405 en provoquent forcément un. PHPUnit tourne ici avec
+        // `beStrictAboutOutputDuringTests` et `failOnRisky` : cette ligne compte comme une sortie
+        // inattendue, donc le test devient « risky », donc la suite échoue.
+        //
+        // ⚠️ Et cela ne se voit QU'EN CI : selon la version installée, le logger par défaut écrit
+        // sur stderr (que PHPUnit ne capture pas) ou sur stdout. En local, en *highest*, les deux
+        // tests passaient ; en *lowest*, ils tombaient. Le remplacement supprime la différence au
+        // lieu de la subir.
+        $container->addCompilerPass(new class implements CompilerPassInterface {
+            #[\Override]
+            public function process(ContainerBuilder $container): void
+            {
+                if ($container->hasDefinition('logger')) {
+                    $container->getDefinition('logger')->setClass(NullLogger::class)->setArguments([]);
+                }
+            }
+        }, PassConfig::TYPE_BEFORE_OPTIMIZATION, 100);
+
         $container->addCompilerPass(new class implements CompilerPassInterface {
             #[\Override]
             public function process(ContainerBuilder $container): void
