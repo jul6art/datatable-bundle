@@ -1202,6 +1202,15 @@ export default class extends Controller {
         field.setAttribute('aria-haspopup', 'dialog');
         field.setAttribute('aria-expanded', 'false');
 
+        // L'addon fait partie du champ, comme l'enveloppe d'un CustomEmailType : un champ de date
+        // qui ne dit pas qu'il est une date se lit comme une zone de texte. Décoratif, donc
+        // `aria-hidden` — le champ porte déjà le libellé de sa colonne.
+        const addon = document.createElement('span');
+        addon.className = 'dt-filter-daterange__addon';
+        addon.setAttribute('aria-hidden', 'true');
+        addon.innerHTML = '<i class="fa-regular fa-calendar"></i>';
+        field.appendChild(addon);
+
         const label = document.createElement('span');
         label.className = 'dt-filter-daterange__value';
         field.appendChild(label);

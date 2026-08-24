@@ -306,16 +306,27 @@ table.dataTable > tbody > tr.child span.dtr-data {
     @apply px-2 py-2 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 align-top;
 }
 
-/* Filtre plage de dates : UN SEUL champ, aligné sur la hauteur des selects
-   de filtre (38px). Deux inputs empilés doublaient la hauteur de toute la
-   ligne de filtres pour une colonne rarement filtrée ; le champ affiche la
-   plage en clair et ouvre un popover portant les deux bornes. */
+/* Filtre plage de dates : UN SEUL champ. Deux inputs empilés doublaient la
+   hauteur de toute la ligne de filtres pour une colonne rarement filtrée ;
+   le champ affiche la plage en clair et ouvre un popover portant les bornes.
+
+   ⚠️ Il s'aligne sur le Select2 de LA LIGNE DE FILTRES — 34px / text-xs,
+   cf. `select2.css` `.dt-filter-row .select2-selection--single` — et NON sur
+   le Select2 global, qui fait 38px. Calé sur le mauvais des deux, ce champ
+   sortait 4px plus haut et d'un cran de police au-dessus de tous ses voisins,
+   dans une ligne `align-top` : il dépassait par le bas. Mesuré à l'écran le
+   2026-08-23 (38 vs 34, 14px vs 12px). */
 .dt-filter-daterange {
-    @apply relative flex items-center gap-1;
+    @apply relative flex w-full items-center;
 }
 
 .dt-filter-daterange__field {
-    @apply h-[38px] flex-1 min-w-0 flex items-center text-left text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg px-2 focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 transition-colors;
+    @apply h-[34px] w-full min-w-0 flex items-center gap-2 text-left text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg pl-2 pr-8 focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 transition-colors;
+}
+
+/* L'icône calendrier, à gauche dans le champ. */
+.dt-filter-daterange__addon {
+    @apply flex-shrink-0 leading-none text-slate-400 dark:text-slate-500;
 }
 
 /* Une plage posée se lit comme une valeur, pas comme un placeholder. */
@@ -344,12 +355,17 @@ table.dataTable > tbody > tr.child span.dtr-data {
     @apply flex flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400;
 }
 
+/* Les deux bornes DANS le popover : même pas de hauteur que le champ, pour
+   qu'il n'y ait qu'une seule échelle dans toute la surface de filtrage. */
 .dt-filter-date--range {
-    @apply h-[38px] w-full text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2 focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 transition-colors;
+    @apply h-[34px] w-full text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2 focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 transition-colors;
 }
 
+/* ⚠️ SORTI DU FLUX. En frère flex, ce bouton gardait sa place en permanence —
+   il est masqué par `visibility`, pas par `display` — et volait ~29px au champ,
+   qui sortait alors plus étroit que le select voisin (192px contre 208px). */
 .dt-filter-daterange__clear {
-    @apply flex-shrink-0 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors text-sm leading-none p-1 rounded;
+    @apply absolute right-1.5 top-1/2 -translate-y-1/2 flex-shrink-0 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors text-xs leading-none p-1 rounded;
 }
 
 /* ── Mobile Card View ───────────────────────────────── */
@@ -489,6 +505,13 @@ table.dataTable > tbody > tr.child span.dtr-data {
 
 .dt-mobile-filter-sheet .select2-container--default .select2-selection--single {
     @apply border border-slate-300 rounded-lg h-auto py-2 px-3;
+}
+
+/* Le filtre de plage suit le même assouplissement dans le tiroir : y laisser la
+   hauteur fixe du bureau le désalignerait des selects qui l'entourent — le défaut
+   corrigé côté bureau, simplement déplacé sur mobile. */
+.dt-mobile-filter-sheet .dt-filter-daterange__field {
+    @apply h-auto py-2;
 }
 
 /* ── Responsive: < 1024px (mobile + tablet, card view) ─
