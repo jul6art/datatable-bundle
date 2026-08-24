@@ -11,6 +11,7 @@ use Jul6Art\DatatableBundle\Preference\DatatablePreferenceStoreInterface;
 use Jul6Art\DatatableBundle\Twig\DataTableBulkExtension;
 use Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension;
 use Jul6Art\DatatableBundle\Twig\DataTableStatusMapExtension;
+use Psr\Log\NullLogger;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Loader\LoaderInterface;
@@ -19,7 +20,6 @@ use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
 use Symfony\Component\HttpKernel\Kernel;
-use Psr\Log\NullLogger;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
 
 /**
