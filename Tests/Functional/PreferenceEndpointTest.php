@@ -13,6 +13,9 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
+use Symfony\Component\Routing\Exception\MethodNotAllowedException;
+use Symfony\Component\Routing\Exception\ResourceNotFoundException;
+use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\InMemoryUser;
@@ -29,6 +32,9 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 #[CoversClass(DatatablePreferenceController::class)]
 final class PreferenceEndpointTest extends AbstractFunctionalTestCase
 {
+    /** La table de démonstration, sous le préfixe que `Tests/Fixtures/routes.yaml` déclare. */
+    private const string PATH = '/datatable/preferences/erp_product';
+
     /**
      * One session for the whole test, attached to every request AND to the one the CSRF token is
      * minted from. That is the only way to exercise the real `CsrfTokenManager`: its storage is the
@@ -187,14 +193,21 @@ final class PreferenceEndpointTest extends AbstractFunctionalTestCase
      * The key becomes part of a storage key, so its shape is a route requirement rather than a
      * check inside the controller: a key with a slash in it would look like a path, and one with a
      * quote in it would reach the store.
+     *
+     * ⚠️ Asserted on the ROUTER, not by driving the kernel to a 404. `ErrorListener` logs
+     * "Uncaught PHP Exception …" through the `logger` service, PHPUnit counts that line as
+     * unexpected output, and `failOnRisky` then fails the suite — so a test that REQUIRES a 404
+     * makes itself risky. Worse, it only shows on `lowest deps`, where that logger writes to
+     * stdout instead of stderr. What is being asserted is a routing fact; the router is where to
+     * read it.
      */
     public function testAKeyOutsideThePatternHasNoRoute(): void
     {
         $this->boot(withPreferences: true);
-        $this->authenticate();
 
-        self::assertSame(Response::HTTP_NOT_FOUND, $this->request('GET', 'erp/product')->getStatusCode());
-        self::assertSame(Response::HTTP_NOT_FOUND, $this->request('GET', 'Erp_Product')->getStatusCode());
+        self::assertFalse($this->routed('/datatable/preferences/erp/product'), 'Une barre oblique ressemble à un chemin.');
+        self::assertFalse($this->routed('/datatable/preferences/Erp_Product'), 'Le motif est en minuscules.');
+        self::assertTrue($this->routed(self::PATH), 'Et une clé conforme passe.');
     }
 
     /**
@@ -241,14 +254,17 @@ final class PreferenceEndpointTest extends AbstractFunctionalTestCase
 
     /**
      * A route that only answers three verbs. `POST` on it is a client bug, and it must read as one
-     * rather than as a save that silently did nothing.
+     * rather than as a save that silently did nothing. Read on the router, for the reason above.
      */
     public function testTheRouteAnswersOnlyItsThreeVerbs(): void
     {
         $this->boot(withPreferences: true);
-        $this->authenticate();
 
-        self::assertSame(Response::HTTP_METHOD_NOT_ALLOWED, $this->request('POST', 'erp_product')->getStatusCode());
+        foreach ([Request::METHOD_GET, Request::METHOD_PUT, Request::METHOD_DELETE] as $method) {
+            self::assertTrue($this->routed(self::PATH, $method), $method.' doit être routé.');
+        }
+
+        self::assertFalse($this->routed(self::PATH, Request::METHOD_POST), 'POST n\'est pas dans la route.');
     }
 
     /**
@@ -263,6 +279,25 @@ final class PreferenceEndpointTest extends AbstractFunctionalTestCase
     public function testWithAStoreTheEndpointIsRegistered(): void
     {
         self::assertTrue($this->boot(withPreferences: true)->has(DatatablePreferenceController::class));
+    }
+
+    /**
+     * Whether the router matches this path for this method — without going through the kernel.
+     */
+    private function routed(string $path, string $method = Request::METHOD_GET): bool
+    {
+        $router = $this->kernel()->getContainer()->get('router');
+        self::assertInstanceOf(RouterInterface::class, $router);
+
+        $router->getContext()->setMethod($method);
+
+        try {
+            $router->match($path);
+
+            return true;
+        } catch (ResourceNotFoundException|MethodNotAllowedException) {
+            return false;
+        }
     }
 
     /**
