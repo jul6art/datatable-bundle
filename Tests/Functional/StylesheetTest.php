@@ -247,6 +247,30 @@ final class StylesheetTest extends TestCase
         self::assertStringContainsString('declaredDefaults.get(col.data) !== false', $js);
     }
 
+    /**
+     * Cocher une colonne à rendu `iri` doit RÉSOUDRE ses IRI.
+     *
+     * `_resolvePageIris()` saute volontairement les colonnes masquées — un IRI qu'on n'affiche pas
+     * n'est pas une requête à payer. Mais `column().visible(true)` réinsère les `<td>` du DERNIER
+     * draw, donc les placeholders d'attente rendus pendant que la colonne était masquée, et rien
+     * ne relançait la résolution : la colonne restait sur « … » indéfiniment, jusqu'à ce qu'un tri,
+     * une pagination ou une recherche provoque un draw. C'est le défaut P1 du rapport
+     * `2026-08-24` (mesuré sur `manager` de la table des salariés : zéro requête, cellules figées).
+     *
+     * Deux points sont figés ici, et l'oubli du second rendrait le premier inopérant : la bascule
+     * demande la résolution, et cette demande redessine MÊME quand il n'y avait rien à récupérer —
+     * une colonne dont les IRI sont déjà en cache porte quand même les placeholders du draw
+     * précédent.
+     */
+    public function testShowingAnIriColumnResolvesIt(): void
+    {
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertStringContainsString('this._resolvePageIris(true);', $js);
+        self::assertStringContainsString('async _resolvePageIris(force = false)', $js);
+        self::assertStringContainsString('if (iris.size === 0 && !force) return;', $js);
+    }
+
     private static function read(string $name): string
     {
         return (string) file_get_contents(\dirname(__DIR__, 2).'/assets/styles/'.$name);

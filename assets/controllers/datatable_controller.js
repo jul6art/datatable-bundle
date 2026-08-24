@@ -397,6 +397,15 @@ export default class extends Controller {
             this.dataTable.column(index + this._bulkOffset).visible(target.visible, false);
             this._rebuildFilterRow();
             this.dataTable.columns.adjust();
+            // Showing a column re-inserts the `<td>` of the LAST draw, not fresh ones. For a
+            // column rendered as an IRI those cells hold the pending placeholder, because
+            // `_resolvePageIris()` deliberately skips hidden columns — so the resolver was never
+            // asked for those IRIs and nothing would ever ask again: no draw happens here. Without
+            // this call the column stays on "…" until an unrelated sort, search or page change
+            // triggers a draw.
+            if (target.visible) {
+                this._resolvePageIris(true);
+            }
             this._renderCards();
         }
 
@@ -1205,7 +1214,19 @@ export default class extends Controller {
 
     // ── IRI resolution (batch after draw) ───────────────────────
 
-    async _resolvePageIris() {
+    /**
+     * Resolves the IRIs of the current page, then redraws so the labels replace the pending
+     * placeholders. Called on every draw, and by `_toggleColumn()` when a column is shown.
+     *
+     * @param {boolean} force redraw even when nothing had to be fetched. A column that has just
+     *   been made visible carries the cells rendered while it was hidden — placeholders, since the
+     *   collection below skips hidden columns — so they need re-rendering whether or not their IRIs
+     *   were already cached.
+     *
+     * A call arriving while a resolution is in flight returns: that pass ends with a redraw, whose
+     * `draw` callback comes back here with the flag cleared and the new column visible.
+     */
+    async _resolvePageIris(force = false) {
         if (!this.dataTable || this._resolving) return;
 
         const data = this.dataTable.rows({ page: 'current' }).data().toArray();
@@ -1227,11 +1248,13 @@ export default class extends Controller {
             }
         }
 
-        if (iris.size === 0) return;
+        if (iris.size === 0 && !force) return;
 
-        this._resolving = true;
-        await iriResolver.resolveMany([...iris]);
-        this._resolving = false;
+        if (iris.size > 0) {
+            this._resolving = true;
+            await iriResolver.resolveMany([...iris]);
+            this._resolving = false;
+        }
 
         this.dataTable.rows({ page: 'current' }).invalidate('data').draw(false);
     }
