@@ -10,8 +10,10 @@ use Rector\Renaming\Rector\Name\RenameClassRector;
 return RectorConfig::configure()
     ->withPaths([
         __DIR__.'/DatatableBundle.php',
+        __DIR__.'/Controller',
         __DIR__.'/DataTable',
         __DIR__.'/DependencyInjection',
+        __DIR__.'/Preference',
         __DIR__.'/Tests',
         __DIR__.'/Twig',
     ])

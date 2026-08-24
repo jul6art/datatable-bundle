@@ -1,0 +1,7 @@
+# La carte de routes du kernel de test : exactement l'import que la documentation demande à un
+# projet d'écrire, préfixe compris. Un test qui déclarerait la route autrement ne prouverait pas
+# que l'attribut du contrôleur est lisible.
+datatable_preferences:
+    resource: '@DatatableBundle/Controller/DatatablePreferenceController.php'
+    type: attribute
+    prefix: /datatable/preferences

@@ -435,6 +435,140 @@ table.dataTable > tbody > tr.child span.dtr-data {
     }
 }
 
+/* ── Per-user preferences: column picker & saved views ─ */
+
+/*
+ * The two dropdowns sit in the top layout row, next to the search. `.dt-prefs` is the positioning
+ * context of its own panel: two panels, two contexts, so opening one never offsets the other.
+ */
+.dt-prefs-group {
+    @apply flex items-center gap-2;
+}
+
+/*
+ * The buttons live in the SAME layout cell as the global search, immediately before it — one
+ * cluster, aligned right together. `flex-wrap` on that cell is what drops them onto their own line
+ * on a narrow viewport instead of squeezing the search box down to nothing; `justify-end` keeps
+ * both lines flush right. Scoped with `:has()` so the rule touches only the cell that received
+ * them, never DataTables' other layout cells.
+ */
+.dt-layout-cell:has(.dt-prefs-group) {
+    @apply flex-wrap justify-end gap-2;
+}
+
+.dt-prefs {
+    @apply relative inline-flex;
+}
+
+.dt-prefs-btn {
+    @apply inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500;
+}
+
+/* The label is what a narrow toolbar gives up first — the icon still says which panel it is. */
+.dt-prefs-btn-label {
+    @apply hidden sm:inline;
+}
+
+/*
+ * `z-index: 120` is not a round number: the Select2 dropdowns of the filter row sit at 105 and
+ * portal themselves to the body, so anything below that opens *behind* a filter the user just used.
+ */
+.dt-prefs-panel {
+    @apply absolute right-0 top-full mt-1.5 w-64 p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-xl text-left;
+    z-index: 120;
+}
+
+.dt-prefs-head {
+    @apply flex items-start gap-2 pb-2 border-b border-slate-100 dark:border-slate-700;
+}
+
+.dt-prefs-hint {
+    @apply flex-1 text-xs leading-snug text-slate-500 dark:text-slate-400;
+}
+
+.dt-prefs-close {
+    @apply inline-flex text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors;
+}
+
+.dt-prefs-list {
+    @apply max-h-72 overflow-y-auto py-1;
+}
+
+.dt-prefs-row {
+    @apply flex items-center gap-1.5 px-0.5 py-1 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700/60;
+}
+
+/* The row being dragged stays in the list, faded: the gap left behind is where it will land. */
+.dt-prefs-row--dragging {
+    @apply opacity-40;
+}
+
+.dt-prefs-handle {
+    @apply text-xs text-slate-400 dark:text-slate-500 cursor-grab;
+}
+
+.dt-prefs-label {
+    @apply flex-1 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer;
+}
+
+/* The last visible column cannot be unticked — the cursor says so before the click does nothing. */
+.dt-prefs-check:disabled {
+    @apply cursor-not-allowed opacity-60;
+}
+
+.dt-prefs-check {
+    @apply rounded border-slate-300 dark:border-slate-600 text-accent-600 focus:ring-accent-500;
+}
+
+.dt-prefs-reset {
+    @apply inline-flex items-center gap-2 w-full mt-1.5 px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors;
+}
+
+.dt-views-row {
+    @apply flex items-center gap-0.5 px-0.5 py-0.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700/60;
+}
+
+.dt-views-row--active {
+    @apply bg-accent-50 dark:bg-accent-900/30;
+}
+
+.dt-views-apply {
+    @apply flex-1 px-1 py-1.5 text-left text-sm text-slate-700 dark:text-slate-200 truncate;
+}
+
+.dt-views-icon {
+    @apply inline-flex p-1 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200 transition-colors;
+}
+
+/* The default view's star is the one coloured mark in the panel — it is the only state that has one. */
+.dt-views-icon--on {
+    @apply text-amber-500 hover:text-amber-600;
+}
+
+.dt-views-icon--danger:hover {
+    @apply text-red-500;
+}
+
+.dt-views-empty {
+    @apply px-1 py-2 text-xs text-slate-400 dark:text-slate-500;
+}
+
+.dt-views-save {
+    @apply flex flex-col gap-1.5 mt-1.5 pt-2 border-t border-slate-100 dark:border-slate-700;
+}
+
+.dt-views-input {
+    @apply h-8 px-2.5 text-sm text-slate-700 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500;
+}
+
+.dt-views-submit {
+    @apply h-8 px-3 text-xs font-medium text-white bg-accent-600 rounded-lg transition-colors hover:bg-accent-700;
+}
+
+.dt-views-submit:disabled {
+    @apply bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed hover:bg-slate-200 dark:hover:bg-slate-700;
+}
+
 /* ── Mobile Filter Bottom Sheet ────────────────────── */
 
 .dt-mobile-filter-overlay {

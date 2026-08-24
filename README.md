@@ -27,7 +27,7 @@ Suggested, and what each unlocks:
 | Package | Without it |
 | --- | --- |
 | `twig/twig` | the three Twig extensions and the two partials are not registered; only the PHP configuration providers are |
-| `symfony/security-csrf` | `_csrf.html.twig` calls `csrf_token()`, which does not exist — the partial fails at render |
+| `symfony/security-csrf` | `_csrf.html.twig` and `_preferences.html.twig` call `csrf_token()`, which does not exist — the partial fails at render. The preferences endpoint then skips its token check, `SameSite=Lax` remaining the baseline |
 | `api-platform/core` | nothing to read: the filter conventions the helpers produce (`?param[after]=`) are API Platform's |
 | `jul6art/api-bundle` | no `OrSearchFilter` for the global search, no `CaseInsensitiveOrderFilter` for the sort |
 
@@ -55,6 +55,13 @@ datatable:
     # Leaves the bundle installed and inert when false.
     enabled: true
 
+    # Where the `datatable.*` keys live — the ones the shipped partial, the bulk bar, the status
+    # maps and the tenant column read. Defaults to `messages`; a project that splits its catalogues
+    # by functional domain sets `datatable` and puts `translations/datatable.<locale>.yaml` next to
+    # its others. The `modal.*` keys are NOT covered: a confirmation modal's vocabulary is shared
+    # with every `ui--modal` on a show page, so it belongs to the application's default domain.
+    translation_domain: messages
+
     # The Stimulus identifier the table controller answers to. It decides the data-attribute
     # prefix the shipped partials emit, so it has to match how the application registered the
     # controller — a build that derives identifiers from a path gives `core--datatable` to a
@@ -62,8 +69,9 @@ datatable:
     stimulus_identifier: datatable
 
     csrf:
-        single: datatable_action     # per-row POST actions
-        bulk: bulk_action            # the /bulk-* endpoints
+        single: datatable_action           # per-row POST actions
+        bulk: bulk_action                  # the /bulk-* endpoints
+        preferences: datatable_preferences # the per-user preferences endpoint (X-CSRF-Token header)
 
     # Added to the thirteen types the bundle ships, never replacing them.
     bulk_actions: [invite, validate]
@@ -87,8 +95,12 @@ datatable:
         label_key: datatable.col.organization
 ```
 
-`datatable.enabled`, `datatable.stimulus_identifier`, `datatable.csrf.single` and
-`datatable.csrf.bulk` are exposed as container parameters.
+`datatable.enabled`, `datatable.stimulus_identifier`, `datatable.translation_domain`,
+`datatable.csrf.single`, `datatable.csrf.bulk` and `datatable.csrf.preferences` are exposed as
+container parameters.
+
+`status_maps.*.domain` and `tenant.label_domain` default to `translation_domain` rather than to
+`messages`, so moving the catalogue does not mean repeating the domain on forty-six maps.
 
 Usage
 -----
@@ -273,6 +285,125 @@ $filters = [...$provider->getFilters(), $admin->tenantFilter()];
 filter, so a super-admin page reuses the *same* provider a tenant user sees instead of a parallel
 copy that drifts one column at a time. Leave `datatable.tenant.endpoint` empty in a single-tenant
 application and never call it.
+
+Per-user preferences
+--------------------
+
+Each user arranges a table for themselves: which columns they see, in what order, and a handful of
+named **views** — a saved set of filters, one of which can open the table. Two dropdowns in the
+toolbar, one attribute in the template.
+
+This bundle interprets the preferences. It does **not** store them: persistence is a port the
+application implements, because the shape it already has for per-user data is the shape it should
+keep. A bundle that shipped an entity would force a migration on every consumer and own a table
+none of them named.
+
+### 1. Implement the store
+
+```php
+use Jul6Art\DatatableBundle\Preference\DatatablePreferenceStoreInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
+
+final readonly class DatatablePreferenceStore implements DatatablePreferenceStoreInterface
+{
+    public function read(UserInterface $user, string $key): ?string { /* SELECT … */ }
+    public function write(UserInterface $user, string $key, string $json): void { /* UPSERT … */ }
+    public function delete(UserInterface $user, string $key): void { /* DELETE … */ }
+}
+```
+
+Three guarantees an implementation owes:
+
+- **one record per (user, key)** — `write()` is an upsert, never an insert. The endpoint is a `PUT`
+  and the client replaces the whole blob on every save; a store that inserts blindly hits its own
+  unique index and surfaces a 500 on the *second* save;
+- **the value is opaque** — it is the JSON the interpreter produced, already bounded to 16 KB. Do
+  not parse it, do not re-encode it;
+- **`read()` answers `null` for "nothing stored yet"**, which is the state of every user on every
+  table until their first save, not an error.
+
+Until an implementation is registered, the endpoint **removes itself** from the container: the
+feature is simply not there, rather than failing the build over a controller nobody asked for.
+
+### 2. Import the route
+
+Where it sits in the URL map is also what decides the firewall around it, so the bundle does not
+declare it:
+
+```yaml
+# config/routes/datatable.yaml
+datatable_preferences:
+    resource: '@DatatableBundle/Controller/DatatablePreferenceController.php'
+    type: attribute
+    prefix: /datatable/preferences
+```
+
+```yaml
+# config/packages/security.yaml
+access_control:
+    - { path: ^/datatable, roles: ROLE_USER }
+```
+
+One route serves **every** table: `GET`, `PUT` and `DELETE` on `/{key}`. That is what makes the
+feature opt-in in one line of Twig instead of a controller per entity.
+
+### 3. Opt a table in
+
+```twig
+<table data-controller="{{ datatable_stimulus() }}"
+       …
+       {{ include('@Datatable/datatable/_preferences.html.twig', { key: 'erp_product' }) }}
+       {{ include('@Datatable/datatable/_translations.html.twig') }}></table>
+```
+
+The key names a **table**, not an entity: two screens listing the same entity with different columns
+are two keys. Pattern: `[a-z0-9][a-z0-9_.-]{0,63}`.
+
+Without the include, the table renders exactly as before — no request, no buttons. A table with
+three columns does not need a column picker.
+
+### What the user gets
+
+| Panel | Actions |
+| --- | --- |
+| **Columns** | tick to show or hide, drag to reorder, one button back to the declared layout. The last visible column cannot be hidden |
+| **Views** | apply a saved set of filters, name the current one, star one as the default, delete one |
+
+The two buttons sit in the global search's own layout cell, immediately before it, and drop onto
+their own line on a narrow viewport. The views button wears the name of the view currently applied —
+the only place that is visible with the panel closed.
+
+Precedence, decided once and worth knowing:
+
+1. the **starred view** wins — filters *and* sort. "Default view at opening" is an explicit, durable
+   instruction; the session's sticky filters are an implicit convenience. The cost is stated rather
+   than hidden: with a view starred, an ad-hoc filter does not survive a navigation. That is what
+   starring one asks for, and un-starring it gives the sticky behaviour back;
+2. **this session's state** (`sessionStorage`) — what keeps a filter across "open a row, come back"
+   when nothing is starred;
+3. the **saved sort preference**, then the template's `default-order`.
+
+A view is a **seed, not a lock**: the next filter or sort change detaches it, and the panel stops
+showing it as active. It never carries a page size — that is a preference of its own.
+
+Reordering columns saves and then **reloads the page**: visibility has a DataTables API and changes
+in place, order has none (ColReorder is a separate plugin), and destroying the table to rebuild it
+does not work on a Stimulus-controlled element — `destroy()` re-inserts the `<table>`, the controller
+reconnects, and two instances end up owning one table. The search, filters and page all come back
+from `sessionStorage`.
+
+### What the server does and does not validate
+
+It bounds everything: counts, lengths, one default view at most, view ids derived from names and
+deduplicated, 16 KB of JSON. It does **not** check that a column key or a filter parameter exists —
+one route serves every table, so at that point there is no way to know which columns `erp_product`
+has. The vocabulary is reconciled **client-side**, where the declared columns are in hand: an
+unknown key is dropped, a column added since the last save is appended. Both happen every time a
+`*DataTableConfigProvider` is edited, and neither may lose the rest of the layout.
+
+The response is always the sanitised state, never an echo of the request — the client adopts it, so
+a name that was cut or a duplicate that was suffixed shows immediately instead of coming back
+changed on the next page load.
 
 Live refresh
 ------------

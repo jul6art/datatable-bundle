@@ -62,6 +62,10 @@ export default class extends Controller {
         userLinkPrefix: { type: String, default: '/admin/users' },
         bulkCsrf: { type: String, default: '' },
         singleCsrf: { type: String, default: '' },
+        // Per-user preferences (column visibility + order, saved views). Empty URL = feature off,
+        // which is the default: the partial that fills these is included table by table.
+        preferencesUrl: { type: String, default: '' },
+        preferencesCsrf: { type: String, default: '' },
         countryNames: { type: Object, default: {} },
         customRoleLabels: { type: Object, default: {} },
         // Row field naming the record a confirm modal is about. Optional: when
@@ -76,14 +80,52 @@ export default class extends Controller {
         installActionsDropdown();
         useTranslatable(this);
         useBlockable(this);
-        this._activeFilters = {};
         this._bulkSelection = new Set();
         this._bulkActions = (this.actionsValue || []).filter(a => a.bulk && a.bulkRoute);
+
+        // ⚠️ The three below are seeded with `??=`, never `=`, and that is not a style choice.
+        //
+        // `connect()` runs a SECOND time on this very instance: building the DataTable wraps the
+        // `<table>` in its own container, and a DOM re-insertion makes Stimulus disconnect then
+        // reconnect the controller. Anything assigned here unconditionally is therefore wiped
+        // AFTER the boot has filled it — and both times it happened, the symptom pointed somewhere
+        // else entirely:
+        //
+        //   - `_columnPrefs` reset → the columns were right (they are baked in before the wrap) but
+        //     the filter row, built later from `initComplete`, sat one cell out of line under the
+        //     wrong headers. It read as a filter bug;
+        //   - `_activeFilters` reset → the first request carried the default view's filters, so the
+        //     rows were right, while the filter widgets showed nothing and no view looked active.
+        //     It read as a rendering bug.
+        //
+        // The seed is still needed: the early return below skips the boot entirely on an
+        // already-initialised table, and the Mercure path that follows reads all three.
+        this._activeFilters ??= {};
+        this._columnPrefs ??= this._defaultColumnPrefs();
+        this._views ??= [];
 
         if (this.element.dataset.datatableInitialized) {
             this._subscribeMercure();
             return;
         }
+
+        this._boot();
+    }
+
+    /**
+     * The preferences are fetched BEFORE the table is built, not applied to it afterwards.
+     *
+     * Column order and visibility are baked into the column definitions DataTables receives, so
+     * reading them late would mean building the table twice and firing two AJAX calls — the second
+     * one visibly replacing the first. The wait costs one request against a route that returns a
+     * single row; a table with no preferences configured never makes it.
+     */
+    async _boot() {
+        await this._loadPreferences();
+
+        // `disconnect()` may have run while the request was in flight — a Turbo navigation, a modal
+        // closing. Building a table on a detached element leaves listeners nothing can remove.
+        if (!this.element.isConnected) return;
 
         if (window.DataTable) {
             this.initializeDataTable();
@@ -108,7 +150,12 @@ export default class extends Controller {
     disconnect() {
         this.unblockAll();
         this._destroyFilters();
+        this._removePanelDismiss();
         this._unsubscribeMercure();
+        if (this._prefsSaveTimer) {
+            clearTimeout(this._prefsSaveTimer);
+            this._prefsSaveTimer = null;
+        }
         if (this._onWindowResize) {
             window.removeEventListener('resize', this._onWindowResize);
             this._onWindowResize = null;
@@ -119,11 +166,825 @@ export default class extends Controller {
         }
     }
 
+    // ── Per-user preferences (columns + saved views) ────────────
+
+    /**
+     * Whether this table was given somewhere to save preferences. The whole feature keys off one
+     * data attribute, so a table that does not include the partial pays nothing: no request, no
+     * buttons, no code path.
+     */
+    get _hasPreferences() {
+        return this.preferencesUrlValue !== '';
+    }
+
+    /**
+     * The declared columns in the user's order. ALL of them, including the ones the user hid —
+     * visibility is a flag on the DataTables column definition, so hiding one must not change any
+     * index. Everything that maps a DataTables column index back to a descriptor (`meta.col`, the
+     * sort field, the filter row, the cards) reads this list.
+     */
+    get _columns() {
+        const byKey = new Map(this.columnsValue.map(col => [col.data, col]));
+
+        return (this._columnPrefs || [])
+            .map(pref => byKey.get(pref.key))
+            .filter(Boolean);
+    }
+
+    /** The subset actually on screen — used where the reader sees columns rather than indexes. */
+    get _visibleColumns() {
+        return this._columns.filter(col => this._isColumnVisible(col.data));
+    }
+
+    _isColumnVisible(key) {
+        const pref = (this._columnPrefs || []).find(entry => entry.key === key);
+
+        return pref ? pref.visible : true;
+    }
+
+    /** Everything declared, visible, in the order the provider wrote it. */
+    _defaultColumnPrefs() {
+        return this.columnsValue.map(col => ({ key: col.data, visible: true }));
+    }
+
+    /**
+     * Reads the stored preferences, and never lets them stop the table from rendering: a 404, a
+     * 403 on an expired session, a network blip all fall back to the declared columns. A column
+     * layout is a convenience; a list of products is the page.
+     */
+    async _loadPreferences() {
+        this._columnPrefs = this._defaultColumnPrefs();
+        this._views = [];
+        this._activeViewId = null;
+        this._preferredSort = null;
+
+        if (!this._hasPreferences) return;
+
+        try {
+            const response = await fetch(this.preferencesUrlValue, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            if (!response.ok) return;
+
+            this._adoptPreferences(await response.json());
+        } catch (e) {
+            // Deliberately silent: see above.
+        }
+    }
+
+    /**
+     * Reconciles what was STORED with what the table DECLARES today.
+     *
+     * The server bounds the blob but cannot know a table's columns — one route serves them all —
+     * so the vocabulary is settled here, where the declared columns are in hand. A key that no
+     * longer exists is dropped; a column added since the last save is appended, visible, at the
+     * end. Both cases are what happens every time a `*DataTableConfigProvider` is edited, so
+     * neither may lose the rest of the layout.
+     */
+    _adoptPreferences(prefs) {
+        if (!prefs || typeof prefs !== 'object') return;
+
+        const declared = new Map(this.columnsValue.map(col => [col.data, col]));
+        const stored = Array.isArray(prefs.columns) ? prefs.columns : [];
+        const kept = stored.filter(pref => pref && declared.has(pref.key));
+        const seen = new Set(kept.map(pref => pref.key));
+
+        this._columnPrefs = [
+            ...kept.map(pref => ({ key: pref.key, visible: pref.visible !== false })),
+            ...this.columnsValue.filter(col => !seen.has(col.data)).map(col => ({ key: col.data, visible: true })),
+        ];
+
+        // Never leave a table with no column at all: a stored blob that hid everything (an older
+        // version, a hand-edited row) would render a header of nothing but the actions menu.
+        if (!this._columnPrefs.some(pref => pref.visible)) {
+            this._columnPrefs = this._columnPrefs.map(pref => ({ ...pref, visible: true }));
+        }
+
+        this._views = Array.isArray(prefs.views) ? prefs.views.filter(view => view && view.id && view.name) : [];
+        this._preferredSort = prefs.sort && prefs.sort.key ? prefs.sort : null;
+    }
+
+    /**
+     * The exact shape the endpoint interprets — the server sanitises, it does not guess.
+     *
+     * `sortOverride` exists for the one caller that has already changed the column order in memory:
+     * `_currentSort()` resolves the LIVE DataTables order index through the column list, so once a
+     * reorder has been spliced in, that index points at a different column. See `_moveColumn`.
+     */
+    _preferencePayload(sortOverride = null) {
+        return {
+            columns: (this._columnPrefs || []).map(pref => ({ key: pref.key, visible: pref.visible })),
+            sort: sortOverride ?? this._currentSort(),
+            views: this._views || [],
+        };
+    }
+
+    _currentSort() {
+        const keys = this._currentOrderKeys();
+
+        return keys.length > 0 ? { key: keys[0][0], dir: keys[0][1] } : this._preferredSort;
+    }
+
+    /**
+     * Saves, coalescing the bursts.
+     *
+     * Ticking four column checkboxes is one intent, not four; the debounce turns it into one
+     * request. Saved views bypass it (`immediate`) because the server assigns their ids and drops
+     * what it refuses — the answer is adopted, so it must not arrive half a second later, after
+     * the user has clicked something else.
+     */
+    _persistPreferences({ immediate = false } = {}) {
+        if (!this._hasPreferences) return;
+
+        if (this._prefsSaveTimer) {
+            clearTimeout(this._prefsSaveTimer);
+            this._prefsSaveTimer = null;
+        }
+
+        if (immediate) {
+            this._savePreferences();
+
+            return;
+        }
+
+        this._prefsSaveTimer = setTimeout(() => {
+            this._prefsSaveTimer = null;
+            this._savePreferences();
+        }, 400);
+    }
+
+    /** @returns {Promise<boolean>} whether the state reached the server */
+    async _savePreferences(sortOverride = null) {
+        try {
+            const response = await fetch(this.preferencesUrlValue, {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-Token': this.preferencesCsrfValue,
+                },
+                body: JSON.stringify(this._preferencePayload(sortOverride)),
+            });
+            if (!response.ok) throw new Error(String(response.status));
+
+            // The response is the truth: an over-long name was cut, a duplicate id was suffixed,
+            // a twentieth view was refused. Adopting it here is what keeps the panel honest.
+            const saved = await response.json();
+            this._views = Array.isArray(saved.views) ? saved.views : [];
+            this._activeViewId = this._matchingViewId();
+            this._syncViewButtonLabel();
+            if (this._openPanel === 'views') this._renderViewPanel();
+
+            return true;
+        } catch (e) {
+            document.dispatchEvent(new CustomEvent('ui:toast', {
+                detail: { message: this.t('datatable.error.saving'), type: 'error' },
+            }));
+
+            return false;
+        }
+    }
+
+    /**
+     * Back to the declared columns — visibility AND order — leaving the saved views alone. That is
+     * what the button says, and it is deliberately not the DELETE route: "reset the columns" must
+     * not also throw away the views someone spent time naming.
+     */
+    async _resetColumns() {
+        // Snapshotted before the order changes, for the reason spelled out in `_moveColumn`.
+        const sort = this._currentSort();
+
+        this._columnPrefs = this._defaultColumnPrefs();
+        await this._commitColumnOrder(sort);
+    }
+
+    _toggleColumn(key) {
+        const prefs = this._columnPrefs || [];
+        const target = prefs.find(pref => pref.key === key);
+        // Hiding the last visible column reads as a broken table, so it is refused here as well as
+        // by `_adoptPreferences` on the way back in.
+        if (!target || (target.visible && prefs.filter(pref => pref.visible).length === 1)) return;
+
+        target.visible = !target.visible;
+
+        const index = this._columns.findIndex(col => col.data === key);
+        if (this.dataTable && index >= 0) {
+            // `visible()` redraws the header and body in place — no reload, no lost scroll. The
+            // filter row is rebuilt rather than synced: DataTables removes the `<th>` of an
+            // invisible column, so a row built for every column would sit one cell out of line.
+            this.dataTable.column(index + this._bulkOffset).visible(target.visible, false);
+            this._rebuildFilterRow();
+            this.dataTable.columns.adjust();
+            this._renderCards();
+        }
+
+        this._persistPreferences();
+        this._renderColumnPanel();
+    }
+
+    /** Moves `key` before or after `target` in the user's order. */
+    async _moveColumn(key, target, before) {
+        const prefs = this._columnPrefs || [];
+        const from = prefs.findIndex(pref => pref.key === key);
+        const onto = prefs.findIndex(pref => pref.key === target);
+        if (from < 0 || onto < 0 || from === onto) return;
+
+        // Snapshot the sort BEFORE reordering. `_currentSort()` resolves the live DataTables order
+        // INDEX through the column list, and the splice below changes what that index points at:
+        // without this line, dragging a column onto position 2 persists "sorted by whatever landed
+        // in position 2" — the table comes back sorted by a column the user never clicked.
+        const sort = this._currentSort();
+
+        const [moved] = prefs.splice(from, 1);
+        const at = prefs.findIndex(pref => pref.key === target);
+        prefs.splice(before ? at : at + 1, 0, moved);
+
+        await this._commitColumnOrder(sort);
+    }
+
+    /**
+     * Saves a new column ORDER, then reloads the page.
+     *
+     * Visibility toggles in place — `column().visible()` is an API — but order has none: ColReorder
+     * is a separate DataTables plugin nobody here owns. The obvious alternative, destroying the
+     * table and building it again, does not work on a Stimulus-controlled element: `destroy()`
+     * re-inserts the original `<table>` node, Stimulus sees a removal followed by an insertion and
+     * disconnects then reconnects the controller. The reconnected instance short-circuits on
+     * `data-datatable-initialized` while the instance that ordered the rebuild still holds a table
+     * nobody owns — two tables, two filter rows, and a panel rendered from preferences the fresh
+     * instance had reloaded from the server before the save landed.
+     *
+     * So: await the save, remember which panel was open, reload. The search, the filters and the
+     * page all come back from `sessionStorage`, so the only thing the user pays is one navigation
+     * for a gesture they make rarely.
+     */
+    async _commitColumnOrder(sort) {
+        // A debounced save from an earlier tick would race the reload for no gain: the state it
+        // carries is the state about to be sent.
+        if (this._prefsSaveTimer) {
+            clearTimeout(this._prefsSaveTimer);
+            this._prefsSaveTimer = null;
+        }
+
+        this._rememberOpenPanel();
+
+        // Reload only on a save that landed. Reloading after a failure would show the OLD order
+        // next to a toast saying the save failed — two contradictory signals for one action.
+        if (await this._savePreferences(sort)) window.location.reload();
+    }
+
+    /**
+     * Which panel to reopen after the reload, keyed on the preferences URL so two tables on one
+     * page never reopen each other's. Consumed once and cleared: a later reload for another reason
+     * must not pop a panel open.
+     */
+    get _panelMemoryKey() {
+        return `dt_panel_${this.preferencesUrlValue}`;
+    }
+
+    _rememberOpenPanel() {
+        try {
+            if (this._openPanel) sessionStorage.setItem(this._panelMemoryKey, this._openPanel);
+        } catch (e) {
+            // sessionStorage may be full or disabled — the panel simply does not reopen.
+        }
+    }
+
+    _consumeRememberedPanel() {
+        try {
+            const remembered = sessionStorage.getItem(this._panelMemoryKey);
+            sessionStorage.removeItem(this._panelMemoryKey);
+
+            return remembered;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // ── Saved views ────────────────────────────────────────────
+
+    /** Mirrors the id the server derives from the name, so the optimistic row already has its key. */
+    _slugify(value) {
+        return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    }
+
+    _saveCurrentView(name) {
+        const trimmed = String(name || '').trim();
+        if (trimmed === '') return;
+
+        const sort = this._currentSort();
+        this._views = [
+            ...(this._views || []),
+            {
+                id: this._slugify(trimmed) || 'view',
+                name: trimmed,
+                filters: { ...this._activeFilters },
+                sort: sort ? { key: sort.key, dir: sort.dir } : null,
+                default: false,
+            },
+        ];
+
+        this._persistPreferences({ immediate: true });
+        this._renderViewPanel();
+    }
+
+    /** At most one default view — it is the one applied when the table opens in a new session. */
+    _toggleDefaultView(id) {
+        const wasDefault = (this._views || []).some(view => view.id === id && view.default);
+        this._views = (this._views || []).map(view => ({ ...view, default: !wasDefault && view.id === id }));
+
+        this._persistPreferences({ immediate: true });
+        this._renderViewPanel();
+    }
+
+    _deleteView(id) {
+        if (this._activeViewId === id) this._activeViewId = null;
+        this._views = (this._views || []).filter(view => view.id !== id);
+
+        this._persistPreferences({ immediate: true });
+        this._renderViewPanel();
+    }
+
+    /**
+     * Applies a view: its filters and its sort, page back to 1 — and never a page size, which is a
+     * preference of its own and always wins.
+     *
+     * A view is a SEED, not a lock: the next explicit sort or filter change detaches it, so the
+     * user is never fighting a state that comes back. That is `_activeViewId` being cleared in
+     * `onDraw` as soon as the query stops matching.
+     */
+    _applyView(view) {
+        this._activeFilters = { ...(view.filters || {}) };
+        this._activeViewId = view.id;
+        this._rebuildFilterRow();
+
+        if (view.sort && view.sort.key) {
+            const order = this._orderFromKeys([[view.sort.key, view.sort.dir]]);
+            if (order.length > 0) this.dataTable.order(order);
+        }
+
+        this._closePanels();
+        this.dataTable.page(0).draw(false);
+    }
+
+    /**
+     * The view whose filters are exactly what is on screen, or null.
+     *
+     * Compared rather than remembered: a filter changed by hand, a sort clicked, a Mercure reload
+     * all go through the same place, and comparing the query is the only thing that cannot forget
+     * one of them.
+     */
+    _matchingViewId() {
+        // No filter applied means no view is active — otherwise a view someone saved with no
+        // filter at all would show as active on every unfiltered draw.
+        if (Object.keys(this._activeFilters || {}).length === 0) return null;
+
+        const current = JSON.stringify(this._sortedFilters(this._activeFilters));
+
+        return (this._views || []).find(view => JSON.stringify(this._sortedFilters(view.filters)) === current)?.id ?? null;
+    }
+
+    _sortedFilters(filters) {
+        return Object.keys(filters || {}).sort().map(key => [key, filters[key]]);
+    }
+
+    // ── Preference panels (toolbar) ────────────────────────────
+
+    /**
+     * The two dropdowns, injected into the top layout row next to the search.
+     *
+     * Built here rather than through DataTables' `layout` API for the same reason the mobile filter
+     * button is: `layout` wants its cells declared before init, and these depend on preferences
+     * that arrive with the table. The row is a flex container, so appending is enough.
+     */
+    _buildPreferenceControls() {
+        if (!this._hasPreferences) return;
+
+        const container = this.element.closest('.dt-container');
+        const topRow = container?.querySelector('.dt-layout-row');
+        if (!topRow || topRow.querySelector('.dt-prefs')) return;
+
+        const group = document.createElement('div');
+        group.className = 'dt-prefs-group';
+
+        // A picker over a single column is a button that can do nothing.
+        if (this._columns.length > 1) {
+            group.appendChild(this._buildPanel('columns', 'fa-table-columns', 'datatable.columns.button'));
+        }
+
+        // A view stores FILTERS. Read on the declared filters, not the visible ones: hiding a
+        // column must not make the saved views disappear with it.
+        if ((this.filtersValue || []).length > 0) {
+            group.appendChild(this._buildPanel('views', 'fa-bookmark', 'datatable.views.button'));
+        }
+
+        if (!group.firstChild) return;
+
+        // Inside the SEARCH's own layout cell, immediately before it — not appended to the row.
+        // The three controls are one cluster and have to stay aligned on the right together; the
+        // cell's `flex-wrap` (stylesheet) is what drops the buttons onto their own line on a narrow
+        // viewport instead of squeezing the search box. With the global search turned off there is
+        // no end cell, and the row itself is the right place.
+        const search = container?.querySelector('.dt-search');
+        if (search?.parentElement) {
+            search.parentElement.insertBefore(group, search);
+        } else {
+            topRow.appendChild(group);
+        }
+
+        this._installPanelDismiss();
+        this._syncViewButtonLabel();
+
+        // A reorder reloads the page, and the panel went with it. Reopening it is what makes
+        // dragging two columns in a row feel like one gesture rather than two round trips.
+        const reopen = this._consumeRememberedPanel();
+        if (reopen) this._togglePanel(reopen);
+    }
+
+    _buildPanel(kind, icon, labelKey) {
+        const wrapper = document.createElement('div');
+        wrapper.className = `dt-prefs dt-prefs--${kind}`;
+        wrapper.dataset.prefsKind = kind;
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'dt-prefs-btn';
+        button.setAttribute('aria-expanded', 'false');
+        button.setAttribute('aria-haspopup', 'dialog');
+        button.innerHTML = `<i class="fa-solid ${icon}"></i><span class="dt-prefs-btn-label">${this._escHtml(this.t(labelKey))}</span>`;
+        button.addEventListener('click', () => this._togglePanel(kind));
+
+        const panel = document.createElement('div');
+        panel.className = 'dt-prefs-panel';
+        panel.setAttribute('role', 'dialog');
+        panel.hidden = true;
+
+        wrapper.appendChild(button);
+        wrapper.appendChild(panel);
+
+        return wrapper;
+    }
+
+    _panelElement(kind) {
+        return this.element.closest('.dt-container')?.querySelector(`.dt-prefs--${kind} .dt-prefs-panel`) ?? null;
+    }
+
+    _togglePanel(kind) {
+        const opening = this._openPanel !== kind;
+        this._closePanels();
+
+        if (!opening) return;
+
+        this._openPanel = kind;
+        const panel = this._panelElement(kind);
+        if (!panel) return;
+
+        panel.hidden = false;
+        panel.parentElement?.querySelector('.dt-prefs-btn')?.setAttribute('aria-expanded', 'true');
+
+        if (kind === 'columns') this._renderColumnPanel();
+        else this._renderViewPanel();
+    }
+
+    _closePanels() {
+        this._openPanel = null;
+        this.element.closest('.dt-container')?.querySelectorAll('.dt-prefs').forEach(wrapper => {
+            const panel = wrapper.querySelector('.dt-prefs-panel');
+            if (panel) panel.hidden = true;
+            wrapper.querySelector('.dt-prefs-btn')?.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    /**
+     * One `document` listener for both panels, installed once and removed on disconnect. The
+     * panels are rebuilt on every table rebuild; a listener added alongside them would accumulate
+     * silently — the very defect the date-range filter had to be fixed for.
+     */
+    _installPanelDismiss() {
+        if (this._panelDismiss) return;
+
+        this._panelDismiss = (event) => {
+            if (!this._openPanel) return;
+
+            // A click on a control whose own handler re-rendered the panel — saving a view,
+            // starring one, deleting one — reaches this listener with its target ALREADY DETACHED,
+            // because `innerHTML` was replaced while the event was still bubbling. `closest()` then
+            // answers null on a node with no document, and the panel closed on its own action.
+            // `isConnected` is the only thing that tells that apart from a click somewhere else.
+            const target = event.target;
+            if (!(target instanceof Element) || !target.isConnected) return;
+
+            if (!target.closest('.dt-prefs')) this._closePanels();
+        };
+        this._panelEscape = (event) => {
+            if (event.key === 'Escape' && this._openPanel) this._closePanels();
+        };
+
+        document.addEventListener('click', this._panelDismiss);
+        document.addEventListener('keydown', this._panelEscape);
+    }
+
+    _removePanelDismiss() {
+        if (!this._panelDismiss) return;
+
+        document.removeEventListener('click', this._panelDismiss);
+        document.removeEventListener('keydown', this._panelEscape);
+        this._panelDismiss = null;
+        this._panelEscape = null;
+    }
+
+    /**
+     * The views button wears the name of the view currently on screen, and falls back to its own
+     * label when none is. It is the only place the active view is visible with the panel CLOSED —
+     * without it, a table opened on its default view looks like a table with a filter someone
+     * forgot to clear.
+     */
+    _syncViewButtonLabel() {
+        const label = this.element.closest('.dt-container')?.querySelector('.dt-prefs--views .dt-prefs-btn-label');
+        if (!label) return;
+
+        const active = (this._views || []).find(view => view.id === this._activeViewId);
+        label.textContent = active ? active.name : this.t('datatable.views.button');
+    }
+
+    _panelHeader(hintKey) {
+        return `
+            <div class="dt-prefs-head">
+                <span class="dt-prefs-hint">${this._escHtml(this.t(hintKey))}</span>
+                <button type="button" class="dt-prefs-close" aria-label="${this._escAttr(this.t('datatable.columns.close'))}">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>`;
+    }
+
+    _renderColumnPanel() {
+        const panel = this._panelElement('columns');
+        if (!panel) return;
+
+        const rows = this._columns.map(col => {
+            const visible = this._isColumnVisible(col.data);
+            const only = visible && this._visibleColumns.length === 1;
+
+            return `
+                <div class="dt-prefs-row" draggable="true" data-column="${this._escAttr(col.data)}">
+                    <i class="fa-solid fa-grip-vertical dt-prefs-handle" aria-hidden="true"></i>
+                    <label class="dt-prefs-label">
+                        <input type="checkbox" class="dt-prefs-check"${visible ? ' checked' : ''}${only ? ' disabled' : ''}>
+                        <span>${this._escHtml(this._columnLabel(col))}</span>
+                    </label>
+                </div>`;
+        }).join('');
+
+        panel.innerHTML = `
+            ${this._panelHeader('datatable.columns.hint')}
+            <div class="dt-prefs-list">${rows}</div>
+            <button type="button" class="dt-prefs-reset">
+                <i class="fa-solid fa-rotate-left"></i>${this._escHtml(this.t('datatable.columns.reset'))}
+            </button>`;
+
+        panel.querySelector('.dt-prefs-close').addEventListener('click', () => this._closePanels());
+        panel.querySelector('.dt-prefs-reset').addEventListener('click', () => this._resetColumns());
+        panel.querySelectorAll('.dt-prefs-row').forEach(row => {
+            row.querySelector('.dt-prefs-check').addEventListener('change', () => this._toggleColumn(row.dataset.column));
+            this._wireColumnDrag(row);
+        });
+    }
+
+    /**
+     * A column header can be HTML (the bulk checkbox column's is), and `title` may carry markup a
+     * provider wrote. The panel wants a plain label, so the tags are stripped rather than escaped —
+     * escaping them would show `<input …>` in a checkbox list.
+     */
+    _columnLabel(col) {
+        const label = String(col.title ?? col.data ?? '').replace(/<[^>]*>/g, '').trim();
+
+        return label === '' ? String(col.data ?? '') : label;
+    }
+
+    /**
+     * Native drag and drop: the rows are moved in the DOM as the pointer passes them, so what the
+     * user sees during the drag is the order that will be saved. The commit happens on `dragend`,
+     * once, from the DOM order — reading the DOM rather than tracking indexes means an interrupted
+     * drag simply changes nothing.
+     */
+    _wireColumnDrag(row) {
+        row.addEventListener('dragstart', (event) => {
+            this._dragKey = row.dataset.column;
+            row.classList.add('dt-prefs-row--dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            // Firefox ignores a drag whose dataTransfer carries nothing.
+            event.dataTransfer.setData('text/plain', row.dataset.column);
+        });
+
+        row.addEventListener('dragend', () => {
+            row.classList.remove('dt-prefs-row--dragging');
+            const key = this._dragKey;
+            this._dragKey = null;
+            if (!key) return;
+
+            const order = Array.from(row.parentElement.children).map(child => child.dataset.column);
+            const target = order[order.indexOf(key) + 1];
+            // Dropped last: anchor on the previous row instead, after it.
+            if (target) this._moveColumn(key, target, true);
+            else if (order.length > 1) this._moveColumn(key, order[order.length - 2], false);
+        });
+
+        row.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            const dragged = row.parentElement?.querySelector('.dt-prefs-row--dragging');
+            if (!dragged || dragged === row) return;
+
+            const box = row.getBoundingClientRect();
+            const before = event.clientY < box.top + box.height / 2;
+            row.parentElement.insertBefore(dragged, before ? row : row.nextSibling);
+        });
+    }
+
+    _renderViewPanel() {
+        const panel = this._panelElement('views');
+        if (!panel) return;
+
+        const views = this._views || [];
+        const rows = views.length === 0
+            ? `<p class="dt-views-empty">${this._escHtml(this.t('datatable.views.empty'))}</p>`
+            : views.map(view => `
+                <div class="dt-views-row${view.id === this._activeViewId ? ' dt-views-row--active' : ''}" data-view="${this._escAttr(view.id)}">
+                    <button type="button" class="dt-views-apply">${this._escHtml(view.name)}</button>
+                    <button type="button" class="dt-views-icon dt-views-default${view.default ? ' dt-views-icon--on' : ''}"
+                            aria-label="${this._escAttr(this.t('datatable.views.default'))}"
+                            title="${this._escAttr(this.t('datatable.views.default'))}">
+                        <i class="fa-${view.default ? 'solid' : 'regular'} fa-star"></i>
+                    </button>
+                    <button type="button" class="dt-views-icon dt-views-icon--danger dt-views-delete"
+                            aria-label="${this._escAttr(this.t('datatable.views.delete'))}"
+                            title="${this._escAttr(this.t('datatable.views.delete'))}">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>`).join('');
+
+        panel.innerHTML = `
+            ${this._panelHeader('datatable.views.hint')}
+            <div class="dt-prefs-list">${rows}</div>
+            <div class="dt-views-save">
+                <input type="text" class="dt-views-input" maxlength="60" placeholder="${this._escAttr(this.t('datatable.views.name'))}">
+                <button type="button" class="dt-views-submit" disabled>${this._escHtml(this.t('datatable.views.save'))}</button>
+            </div>`;
+
+        panel.querySelector('.dt-prefs-close').addEventListener('click', () => this._closePanels());
+
+        const input = panel.querySelector('.dt-views-input');
+        const submit = panel.querySelector('.dt-views-submit');
+        const sync = () => { submit.disabled = input.value.trim() === ''; };
+        const save = () => {
+            if (submit.disabled) return;
+            this._saveCurrentView(input.value);
+        };
+        input.addEventListener('input', sync);
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') { event.preventDefault(); save(); }
+        });
+        submit.addEventListener('click', save);
+
+        panel.querySelectorAll('.dt-views-row').forEach(row => {
+            const view = views.find(candidate => candidate.id === row.dataset.view);
+            row.querySelector('.dt-views-apply').addEventListener('click', () => this._applyView(view));
+            row.querySelector('.dt-views-default').addEventListener('click', () => this._toggleDefaultView(view.id));
+            row.querySelector('.dt-views-delete').addEventListener('click', () => this._deleteView(view.id));
+        });
+    }
+
+    // ── Column order ↔ DataTables indexes ──────────────────────
+
+    /** The bulk checkbox column shifts every DataTables index by one. */
+    get _bulkOffset() {
+        return this._bulkActions.length > 0 ? 1 : 0;
+    }
+
+    /**
+     * `defaultOrderValue` is written by a template as an INDEX into the declared columns — which
+     * stops meaning anything the moment a user reorders them. Resolving it to a column key once,
+     * against the declared list, is what keeps `[[2, "asc"]]` pointing at the same column after a
+     * drag.
+     */
+    _defaultOrderKeys() {
+        return (this.defaultOrderValue || [])
+            .map(([index, dir]) => [this.columnsValue[Number(index)]?.data, dir === 'desc' ? 'desc' : 'asc'])
+            .filter(([key]) => Boolean(key));
+    }
+
+    /** Column keys → DataTables order, dropping what this table no longer shows. */
+    _orderFromKeys(keys) {
+        const columns = this._columns;
+
+        return (keys || [])
+            .map(([key, dir]) => [columns.findIndex(col => col.data === key), dir === 'desc' ? 'desc' : 'asc'])
+            .filter(([index]) => index >= 0)
+            .map(([index, dir]) => [index + this._bulkOffset, dir]);
+    }
+
+    /** The reverse, so what is persisted survives a reorder or a hidden column. */
+    _currentOrderKeys() {
+        if (!this.dataTable) return [];
+
+        const columns = this._columns;
+
+        return this.dataTable.order()
+            .map(([index, dir]) => [columns[Number(index) - this._bulkOffset]?.data, dir])
+            .filter(([key]) => Boolean(key));
+    }
+
+    /**
+     * The filters the table opens with.
+     *
+     * A STARRED view wins over the filters this session had stored. That order is the whole meaning
+     * of the star: "vue par défaut à l'ouverture" is an explicit, durable instruction about how
+     * this table opens, while the session's sticky filters are an implicit convenience nobody asked
+     * for by name. With the previous order, saving a second view left the session pinned to it and
+     * the starred one never came back — which reads as "the view I just saved became the default"
+     * (reported 2026-08-24).
+     *
+     * The cost is stated rather than hidden: with a view starred, an ad-hoc filter does not survive
+     * a navigation. That is precisely what starring one asks for, and un-starring it gives the
+     * sticky behaviour back.
+     */
+    _openingFilters(saved) {
+        const view = (this._views || []).find(candidate => candidate.default);
+        if (view) {
+            this._activeViewId = view.id;
+
+            return { ...(view.filters || {}) };
+        }
+
+        return { ...(saved?.filters ?? {}) };
+    }
+
+    /**
+     * Sort precedence, highest first:
+     *
+     * 1. **the starred view's sort** — it opens the table, so it brings its ordering. Above the
+     *    session for the same reason its filters are: see `_openingFilters()`. The two have to
+     *    agree, or the table opens on one view's filters sorted by another's column;
+     * 2. **this session's last click** — restored from `sessionStorage`;
+     * 3. **the saved sort preference** — the last ordering this user chose, months ago;
+     * 4. **the template's `default-order`** — the provider's intent;
+     * 5. the first column ascending, so a table always has an order.
+     *
+     * Each candidate is resolved through `_orderFromKeys`, which drops a column this table no
+     * longer has — so a stale preference falls through to the next candidate instead of leaving
+     * the table unsorted.
+     */
+    _resolveOrder(saved) {
+        const view = (this._views || []).find(candidate => candidate.default);
+        const candidates = [
+            view?.sort?.key ? [[view.sort.key, view.sort.dir]] : null,
+            saved?.orderKeys,
+            this._preferredSort?.key ? [[this._preferredSort.key, this._preferredSort.dir]] : null,
+            this._defaultOrderKeys(),
+        ];
+
+        for (const keys of candidates) {
+            const order = this._orderFromKeys(keys);
+            if (order.length > 0) return order;
+        }
+
+        return [[this._bulkOffset, 'asc']];
+    }
+
+    // ── Filter row rebuild ─────────────────────────────────────
+
+    /**
+     * Rebuilds the filter row from scratch.
+     *
+     * Two reasons it cannot be patched in place. DataTables removes the `<th>` of an invisible
+     * column, so the row must be rebuilt against the columns that are actually there. And each
+     * widget reads `_activeFilters` when it is created — the date-range field renders its "from →
+     * to" label in a closure at build time — so applying a saved view by writing into the inputs
+     * would leave a field showing the previous range.
+     */
+    _rebuildFilterRow() {
+        this._destroyFilters();
+        this.element.querySelector('.dt-filter-row')?.remove();
+        this._buildFilters();
+        this._syncFilterSelections();
+        this._updateMobileFilterBadge();
+    }
+
     initializeDataTable() {
         const panel = this.element.closest('.panel');
         this._blockId = this.block(panel || this.element);
 
         const saved = this._loadState();
+
+        // The filters are settled BEFORE the table exists, not restored after it.
+        //
+        // Every filter widget reads `_activeFilters` as it is created — the date-range field
+        // renders its "from → to" label in a closure at build time — and so does the first AJAX
+        // call. Setting it here means ONE request carrying the right query, instead of an
+        // unfiltered draw immediately corrected by a filtered one. It is also what lets a default
+        // view apply on the first paint rather than as a visible jump.
+        this._activeFilters = this._openingFilters(saved);
         const columns = this.buildColumns();
 
         const config = {
@@ -150,8 +1011,7 @@ export default class extends Controller {
             },
             columns: columns,
             pageLength: saved?.pageLength || this.pageLengthValue,
-            order: saved?.order
-                ?? this._shiftOrderForBulk(this.defaultOrderValue.length > 0 ? this.defaultOrderValue : [[0, 'asc']]),
+            order: this._resolveOrder(saved),
             displayStart: saved?.start || 0,
             search: { search: saved?.search || '' },
             language: this.getLanguageConfig(),
@@ -168,6 +1028,7 @@ export default class extends Controller {
             },
             initComplete: () => {
                 this._buildFilters();
+                this._buildPreferenceControls();
                 this._buildMobileFilterButton();
                 this._restoreState(saved);
                 this._updateMobileFilterBadge();
@@ -241,6 +1102,12 @@ export default class extends Controller {
             this._blockId = null;
         }
         this._saveState();
+        // Recomputed on every draw rather than remembered: a filter cleared by hand, a Select2
+        // change, a Mercure reload all land here, and comparing the query is the only check that
+        // cannot forget one of them. The panel then shows no view as active, which is exactly
+        // what "you have changed the view" should look like.
+        this._activeViewId = this._matchingViewId();
+        this._syncViewButtonLabel();
         this._resolvePageIris();
         this._renderCards();
         // Reset bulk selection whenever the query (search/filters/sort)
@@ -249,19 +1116,6 @@ export default class extends Controller {
         this._resetBulkSelectionIfQueryChanged();
         this._wireBulkCheckboxes();
         this._renderBulkBar();
-    }
-
-    /**
-     * `defaultOrderValue` (from Twig) is expressed against the original
-     * `columnsValue` index. When the bulk checkbox column is prepended,
-     * those indexes are off by one — shift them once so the user sees
-     * the column they expect. Persisted state is NOT re-shifted because
-     * it was already captured in DataTables internal (shifted) space.
-     * @param {Array<Array<number|string>>} order
-     */
-    _shiftOrderForBulk(order) {
-        if (this._bulkActions.length === 0) return order;
-        return (order || []).map(([col, dir]) => [Number(col) + 1, dir]);
     }
 
     _resetBulkSelectionIfQueryChanged() {
@@ -304,7 +1158,9 @@ export default class extends Controller {
         if (!this.dataTable || this._resolving) return;
 
         const data = this.dataTable.rows({ page: 'current' }).data().toArray();
-        const iriColumns = this.columnsValue
+        // The visible columns only: an IRI in a hidden column is never rendered, so resolving it
+        // would be a request for a label nobody reads.
+        const iriColumns = this._visibleColumns
             .map((col, idx) => ({ ...col, idx }))
             .filter(col => col.render === 'iri' || col.render === 'userIri');
 
@@ -513,7 +1369,9 @@ export default class extends Controller {
         const state = {
             start: info.start,
             pageLength: info.length,
-            order: order,
+            // Column KEYS, not DataTables indexes: an index means nothing once the user has
+            // reordered or hidden a column, and a stale one silently sorts by the wrong field.
+            orderKeys: this._currentOrderKeys(),
             search: searchInput?.value || '',
             filters: { ...this._activeFilters },
         };
@@ -534,53 +1392,53 @@ export default class extends Controller {
         }
     }
 
+    /**
+     * What is left to restore once the table is up.
+     *
+     * The filters themselves were applied before init (cf. `initializeDataTable`), so there is no
+     * redraw here — the first request already carried them. What remains is the two things that
+     * live in widgets rather than in the query: the search box's visible text, and the selected
+     * option of each Select2, which has to be created before it can be selected.
+     */
     _restoreState(saved) {
-        if (!saved || !this.dataTable) return;
+        if (!this.dataTable) return;
 
-        // Restore search input visual value (DataTables config already set the search)
-        if (saved.search) {
+        if (saved?.search) {
             const searchInput = this.element.closest('.dt-container')?.querySelector('.dt-search input');
             if (searchInput) {
                 searchInput.value = saved.search;
             }
         }
 
-        // Restore filters
-        if (saved.filters && Object.keys(saved.filters).length > 0) {
-            this._activeFilters = { ...saved.filters };
+        this._syncFilterSelections();
+    }
 
-            // Update Select2 values
-            if (window.jQuery) {
-                const $ = window.jQuery;
-                this.element.querySelectorAll('.dt-filter-select').forEach(select => {
-                    const param = select.dataset.filterParam;
-                    const value = saved.filters[param];
-                    if (value !== undefined) {
-                        if (select.dataset.filterType === 'api') {
-                            // P2 (report 2026-05-21) — option is created with the raw
-                            // value (IRI/id) as label, then resolved to a readable label.
-                            const opt = new Option(value, value, true, true);
-                            $(select).append(opt).trigger('change.select2');
-                            this._resolveFilterOptionLabel(select, value, opt);
-                        } else {
-                            $(select).val(value).trigger('change.select2');
-                        }
-                    }
-                });
+    /**
+     * Pushes `_activeFilters` into the filter widgets.
+     *
+     * Select2 cannot select a value it has no option for, and an AJAX filter has none until the
+     * user opens it — so the option is created here with the raw value as its label, then patched
+     * with the readable one. Called after any rebuild of the filter row, which is also how a saved
+     * view's filters become visible in the header.
+     */
+    _syncFilterSelections() {
+        if (!window.jQuery) return;
+
+        const $ = window.jQuery;
+        this.element.querySelectorAll('.dt-filter-select').forEach(select => {
+            const value = this._activeFilters[select.dataset.filterParam];
+            if (value === undefined || value === '') return;
+
+            if (select.dataset.filterType === 'api') {
+                // P2 (report 2026-05-21) — option is created with the raw
+                // value (IRI/id) as label, then resolved to a readable label.
+                const opt = new Option(value, value, true, true);
+                $(select).append(opt).trigger('change.select2');
+                this._resolveFilterOptionLabel(select, value, opt);
+            } else {
+                $(select).val(value).trigger('change.select2');
             }
-
-            // Update date inputs
-            this.element.querySelectorAll('.dt-filter-date').forEach(input => {
-                const param = input.dataset.filterParam;
-                const value = saved.filters[param];
-                if (value) {
-                    input.value = value;
-                }
-            });
-
-            // Redraw with restored filters applied
-            this.dataTable.draw();
-        }
+        });
     }
 
     // ── Filters ────────────────────────────────────────────────
@@ -897,6 +1755,26 @@ export default class extends Controller {
         const thead = this.element.querySelector('thead');
         if (!thead) return;
 
+        // A column the user hid has NO `<th>` in the header row — DataTables removes it rather
+        // than hiding it — so a filter row built for every column would sit one cell out of line
+        // from that point on. Only the columns actually rendered get a cell.
+        const allColumns = [
+            ...this._columns.filter(col => this._isColumnVisible(col.data)),
+            ...(this.actionsValue && this.actionsValue.length > 0 ? [{ data: '__actions__' }] : []),
+        ];
+
+        // No row at all when not one VISIBLE column carries a filter.
+        //
+        // The table declares filters, so the guard above passes — but the user may have hidden
+        // every column that has one. Building the row anyway draws a strip of empty `<th>` across
+        // the width of the table: a second header row, as tall as a filter field, filtering
+        // nothing. The filters of the hidden columns are still reachable from the mobile filter
+        // sheet, which lists them all on purpose, and re-showing one of those columns rebuilds
+        // this row.
+        if (!allColumns.some(col => this.filtersValue.some(filter => filter.column === col.data))) {
+            return;
+        }
+
         const filterRow = document.createElement('tr');
         filterRow.className = 'dt-filter-row';
 
@@ -904,11 +1782,6 @@ export default class extends Controller {
         // (if enabled) → data columns → actions column.
         if (this._bulkActions.length > 0) {
             filterRow.appendChild(document.createElement('th'));
-        }
-
-        const allColumns = [...this.columnsValue];
-        if (this.actionsValue && this.actionsValue.length > 0) {
-            allColumns.push({ data: '__actions__' });
         }
 
         allColumns.forEach(col => {
@@ -1404,7 +2277,7 @@ export default class extends Controller {
         // the `dt-cell-numeric` class automatically; CSS handles the
         // rest — no need to pollute each DataTableConfigProvider.
         const NUMERIC_RENDERERS = new Set(['currency', 'number2', 'number0', 'percent0', 'erpStockQuantity']);
-        const cols = this.columnsValue.map(col => {
+        const cols = this._columns.map(col => {
             const baseClass = col.className || '';
             const numericClass = NUMERIC_RENDERERS.has(col.render) ? 'dt-cell-numeric' : '';
             const combinedClass = [baseClass, numericClass].filter(Boolean).join(' ');
@@ -1418,6 +2291,10 @@ export default class extends Controller {
                 searchable: col.searchable !== false,
                 resolveField: col.resolveField || undefined,
                 className: combinedClass || undefined,
+                // Hidden by the user rather than removed: `visible(false)` keeps the column in
+                // DataTables' index space, so no `meta.col`, no `sortField` and no filter cell has
+                // to be recomputed when one is toggled.
+                visible: this._isColumnVisible(col.data),
             };
         });
 
@@ -1460,12 +2337,12 @@ export default class extends Controller {
         if (d.order && d.order.length > 0) {
             const orderCol = d.order[0];
             // The bulk checkbox is prepended as column 0 in DataTables but
-            // doesn't exist in `columnsValue` — shift the index back so the
+            // doesn't exist in the column list — shift the index back so the
             // server receives the correct sort field.
-            const offset = this._bulkActions.length > 0 ? 1 : 0;
-            const dataIdx = orderCol.column - offset;
-            if (dataIdx >= 0 && dataIdx < this.columnsValue.length) {
-                const column = this.columnsValue[dataIdx];
+            const columns = this._columns;
+            const dataIdx = orderCol.column - this._bulkOffset;
+            if (dataIdx >= 0 && dataIdx < columns.length) {
+                const column = columns[dataIdx];
                 if (column && column.data) {
                     const sortField = column.sortField || column.data;
                     params[`order[${sortField}]`] = orderCol.dir;
@@ -1548,9 +2425,8 @@ export default class extends Controller {
             // configured or the row has no id (eg. aggregation rows).
             nameLink: (data, type, row, meta) => {
                 if (type !== 'display') return data;
-                const offset = this._bulkActions.length > 0 ? 1 : 0;
-                const dataIdx = meta.col - offset;
-                const col = this.columnsValue[dataIdx];
+                const dataIdx = meta.col - this._bulkOffset;
+                const col = this._columns[dataIdx];
                 const prefix = col?.linkPrefix || '';
                 const id = row[col?.linkIdField || 'id'];
                 if (!prefix || !id) return data;
@@ -1563,11 +2439,10 @@ export default class extends Controller {
                 }
                 // `meta.col` is the DataTables column index, which is shifted
                 // by 1 when the bulk checkbox column is prepended. Map it
-                // back to the original `columnsValue` index to read the
-                // correct `resolveField`.
-                const offset = this._bulkActions.length > 0 ? 1 : 0;
-                const dataIdx = meta.col - offset;
-                const field = this.columnsValue[dataIdx]?.resolveField || 'name';
+                // back to the effective column list to read the correct
+                // `resolveField`.
+                const dataIdx = meta.col - this._bulkOffset;
+                const field = this._columns[dataIdx]?.resolveField || 'name';
                 const cached = iriResolver.get(data);
                 if (cached) return cached[field] || '—';
                 if (cached === null) return '—';
@@ -1706,8 +2581,7 @@ export default class extends Controller {
                 if (data === null || data === undefined || data === '') return '—';
                 const n = Number(data);
                 if (!Number.isFinite(n)) return '—';
-                const offset = this._bulkActions.length > 0 ? 1 : 0;
-                const col = this.columnsValue[meta.col - offset];
+                const col = this._columns[meta.col - this._bulkOffset];
                 const suffix = row?.currency || col?.suffix || '';
                 const formatted = n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 return suffix ? `${formatted} ${suffix}` : formatted;
@@ -2273,7 +3147,7 @@ export default class extends Controller {
 
         // Build cards from current page data
         const rows = this.dataTable.rows({ page: 'current' }).data().toArray();
-        const columns = this.columnsValue;
+        const columns = this._visibleColumns;
 
         if (rows.length === 0) {
             this._cardContainer.innerHTML = `
@@ -2289,12 +3163,18 @@ export default class extends Controller {
     }
 
     _renderCard(row, columns) {
+        // `meta.col` must be a DATATABLES column index: the renderers that read a descriptor from
+        // it subtract the bulk offset and index the effective column list. Handing them the
+        // position within the card's own column subset pointed at the wrong descriptor — or at
+        // -1 on a table with bulk actions.
+        const metaCol = (col) => ({ col: this._columns.indexOf(col) + this._bulkOffset });
+
         // Find the "primary" column (responsivePriority 1 or first column)
         const primaryCol = columns.find(c => c.responsivePriority === 1) || columns[0];
         const primaryValue = row[primaryCol.data];
         const primaryRenderer = primaryCol.render ? this.getRenderer(primaryCol.render) : null;
         const primaryHtml = primaryRenderer
-            ? primaryRenderer(primaryValue, 'display', row, { col: columns.indexOf(primaryCol) })
+            ? primaryRenderer(primaryValue, 'display', row, metaCol(primaryCol))
             : this._escHtml(primaryValue);
 
         // Secondary fields (skip primary, skip hidden-priority columns)
@@ -2305,7 +3185,7 @@ export default class extends Controller {
                 if (value === null || value === undefined || value === '') return null;
                 const renderer = c.render ? this.getRenderer(c.render) : null;
                 const html = renderer
-                    ? renderer(value, 'display', row, { col: columns.indexOf(c) })
+                    ? renderer(value, 'display', row, metaCol(c))
                     : this._escHtml(value);
                 return { title: c.title, html };
             })

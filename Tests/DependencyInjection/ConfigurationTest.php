@@ -29,8 +29,9 @@ final class ConfigurationTest extends TestCase
     {
         self::assertSame([
             'enabled' => true,
+            'translation_domain' => 'messages',
             'stimulus_identifier' => 'datatable',
-            'csrf' => ['single' => 'datatable_action', 'bulk' => 'bulk_action'],
+            'csrf' => ['single' => 'datatable_action', 'bulk' => 'bulk_action', 'preferences' => 'datatable_preferences'],
             'bulk_actions' => [],
             'status_maps' => [],
             'tenant' => [
@@ -38,7 +39,9 @@ final class ConfigurationTest extends TestCase
                 // n'expose pas, et la colonne inter-tenants n'est alors jamais demandée.
                 'endpoint' => '',
                 'label_key' => 'datatable.col.organization',
-                'label_domain' => 'messages',
+                // Null, pas 'messages' : c'est l'extension qui retombe sur `translation_domain`,
+                // pour qu'un projet qui a déplacé son catalogue n'ait pas à le répéter ici.
+                'label_domain' => null,
             ],
         ], $this->process([]));
     }
@@ -78,7 +81,7 @@ final class ConfigurationTest extends TestCase
         // le fichier de configuration, pas celui de l'arbre, et n'engage rien.
         self::assertEqualsCanonicalizing([
             'path' => [],
-            'domain' => 'messages',
+            'domain' => null,
             'key_prefix' => null,
             'keys' => ['draft'],
         ], $maps['quote'], 'Le nœud laisse path et key_prefix vides ; c\'est l\'extension qui les dérive du nom.');

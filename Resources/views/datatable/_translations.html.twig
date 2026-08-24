@@ -20,40 +20,61 @@
     ⚠️ L'objet DOIT être imbriqué, pas à clés plates. Le mixin `translatable` descend l'arbre
     segment par segment (`value?.[k]`), donc `{'a.b': '…'}` ne se résout jamais et `t('a.b')`
     rend la clé brute.
+
+    Le domaine vient de `datatable.translation_domain` et non d'un littéral : un projet qui répartit
+    ses catalogues par domaine fonctionnel met ces clés dans `translations/datatable.<locale>.yaml`,
+    et les y chercher dans `messages` rendrait la clé brute.
 #}
+{% set domain = datatable_translation_domain() %}
 data-{{ datatable_stimulus() }}-translations-value="{{ {
     datatable: {
-        'filters': 'datatable.filters'|trans({}, 'messages'),
-        'filter_apply': 'datatable.filter_apply'|trans({}, 'messages'),
-        'filter_reset': 'datatable.filter_reset'|trans({}, 'messages'),
+        'filters': 'datatable.filters'|trans({}, domain),
+        'filter_apply': 'datatable.filter_apply'|trans({}, domain),
+        'filter_reset': 'datatable.filter_reset'|trans({}, domain),
         'daterange': {
-            'placeholder': 'datatable.daterange.placeholder'|trans({}, 'messages'),
-            'from': 'datatable.daterange.from'|trans({}, 'messages'),
-            'to': 'datatable.daterange.to'|trans({}, 'messages'),
-            'since': 'datatable.daterange.since'|trans({}, 'messages'),
-            'until': 'datatable.daterange.until'|trans({}, 'messages'),
+            'placeholder': 'datatable.daterange.placeholder'|trans({}, domain),
+            'from': 'datatable.daterange.from'|trans({}, domain),
+            'to': 'datatable.daterange.to'|trans({}, domain),
+            'since': 'datatable.daterange.since'|trans({}, domain),
+            'until': 'datatable.daterange.until'|trans({}, domain),
         },
         'filter': {
-            'input_too_short': 'datatable.filter.input_too_short'|trans({}, 'messages'),
-            'searching': 'datatable.filter.searching'|trans({}, 'messages'),
-            'no_results': 'datatable.filter.no_results'|trans({}, 'messages'),
+            'input_too_short': 'datatable.filter.input_too_short'|trans({}, domain),
+            'searching': 'datatable.filter.searching'|trans({}, domain),
+            'no_results': 'datatable.filter.no_results'|trans({}, domain),
         },
         'status': {
-            'active': 'datatable.status.active'|trans({}, 'messages'),
-            'inactive': 'datatable.status.inactive'|trans({}, 'messages'),
+            'active': 'datatable.status.active'|trans({}, domain),
+            'inactive': 'datatable.status.inactive'|trans({}, domain),
         },
         'confirm': {
-            'title': 'datatable.confirm.title'|trans({}, 'messages'),
-            'message': 'datatable.confirm.message'|trans({}, 'messages'),
-            'confirm': 'datatable.confirm.confirm'|trans({}, 'messages'),
-            'cancel': 'datatable.confirm.cancel'|trans({}, 'messages'),
+            'title': 'datatable.confirm.title'|trans({}, domain),
+            'message': 'datatable.confirm.message'|trans({}, domain),
+            'confirm': 'datatable.confirm.confirm'|trans({}, domain),
+            'cancel': 'datatable.confirm.cancel'|trans({}, domain),
         },
         'error': {
-            'loading': 'datatable.error.loading'|trans({}, 'messages'),
+            'loading': 'datatable.error.loading'|trans({}, domain),
+            'saving': 'datatable.error.saving'|trans({}, domain),
+        },
+        'columns': {
+            'button': 'datatable.columns.button'|trans({}, domain),
+            'hint': 'datatable.columns.hint'|trans({}, domain),
+            'reset': 'datatable.columns.reset'|trans({}, domain),
+            'close': 'datatable.columns.close'|trans({}, domain),
+        },
+        'views': {
+            'button': 'datatable.views.button'|trans({}, domain),
+            'hint': 'datatable.views.hint'|trans({}, domain),
+            'empty': 'datatable.views.empty'|trans({}, domain),
+            'name': 'datatable.views.name'|trans({}, domain),
+            'save': 'datatable.views.save'|trans({}, domain),
+            'default': 'datatable.views.default'|trans({}, domain),
+            'delete': 'datatable.views.delete'|trans({}, domain),
         },
         'coalescence': {
-            'message': 'datatable.coalescence.message'|trans({}, 'messages'),
-            'refresh': 'datatable.coalescence.refresh'|trans({}, 'messages'),
+            'message': 'datatable.coalescence.message'|trans({}, domain),
+            'refresh': 'datatable.coalescence.refresh'|trans({}, domain),
         },
     },
 }|merge_recursive(datatable_bulk_translations())|merge_recursive(extra_translations|default({}))|json_encode|e('html_attr') }}"

@@ -5,8 +5,10 @@ parameters:
         max: 80599
     paths:
         - DatatableBundle.php
+        - Controller
         - DataTable
         - DependencyInjection
+        - Preference
         - Tests
         - Twig
         - rector.php

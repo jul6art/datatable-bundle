@@ -9,6 +9,7 @@ services:
     Jul6Art\DatatableBundle\Twig\DataTableBulkExtension:
         arguments:
             $actionTypes: []
+            $domain: 'messages'
 
     Jul6Art\DatatableBundle\Twig\DataTableStatusMapExtension:
         arguments:
@@ -19,3 +20,5 @@ services:
             $stimulusIdentifier: 'datatable'
             $singleTokenId: 'datatable_action'
             $bulkTokenId: 'bulk_action'
+            $preferencesTokenId: 'datatable_preferences'
+            $translationDomain: 'messages'

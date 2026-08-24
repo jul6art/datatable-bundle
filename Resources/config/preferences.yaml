@@ -1,0 +1,34 @@
+# Chargé uniquement quand le composant Security et le composant Routing sont présents : le
+# contrôleur lit l'utilisateur sur le jeton et porte sa route en attribut. Le `PreferenceControllerPass`
+# affine ensuite — le contrat de persistance peut n'avoir aucune implémentation dans le projet, et
+# c'est alors que la fonctionnalité n'existe simplement pas.
+services:
+    _defaults:
+        autowire: true
+
+    Jul6Art\DatatableBundle\Preference\DatatablePreferenceInterpreter: ~
+
+    # ⚠️ `autoconfigure: false`, et c'est le cœur du câblage.
+    #
+    # L'autoconfiguration de FrameworkBundle voit l'attribut `#[Route]` et pose le tag
+    # `routing.controller`, que le loader `routing.controllers` des recipes Symfony ≥ 7.3 importe
+    # automatiquement — SANS le préfixe que l'application avait choisi. La route sortirait en
+    # `/{key}`, c'est-à-dire par-dessus la page d'accueil, et hors des `access_control` qui visent
+    # son préfixe. Cf. la même note dans `admin-bundle/Resources/config/controller.yaml`.
+    #
+    # Seul `controller.service_arguments` est posé : le contrôleur n'étend pas `AbstractController`,
+    # donc il n'a pas de `setContainer()` à alimenter.
+    Jul6Art\DatatableBundle\Controller\DatatablePreferenceController:
+        autoconfigure: false
+        arguments:
+            # Référence explicite, pas d'autowiring : `symfony/security-core` est un `require`, donc
+            # `TokenStorageInterface` existe toujours comme CLASSE — mais le SERVICE vient de
+            # SecurityBundle, que ce bundle ne requiert pas. L'autowiring échouerait à la
+            # compilation ; le `PreferenceControllerPass` retire plutôt la définition.
+            $tokenStorage: '@security.token_storage'
+            # Les deux suivants sont posés par l'extension : le gestionnaire CSRF est une référence
+            # tolérante à l'absence (`symfony/security-csrf` est un `suggest`), et l'identifiant du
+            # jeton est une configuration du projet.
+            $csrfTokenManager: null
+            $csrfTokenId: 'datatable_preferences'
+        tags: ['controller.service_arguments']

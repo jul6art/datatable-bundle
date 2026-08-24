@@ -1,0 +1,25 @@
+{#
+    Les préférences par utilisateur d'UN tableau — sélecteur de colonnes (visibilité + ordre) et
+    vues enregistrées. À inclure DANS la balise `<table>`, avec la clé du tableau :
+
+        <table data-controller="{{ datatable_stimulus() }}"
+               {{ include('@Datatable/datatable/_preferences.html.twig', { key: 'erp_product' }) }}
+               …>
+
+    Sans cette inclusion, le tableau se rend exactement comme avant : les deux boutons ne
+    s'affichent pas, rien n'est lu, rien n'est écrit. C'est une opt-in par tableau, et c'est
+    volontaire — un tableau à trois colonnes n'a pas besoin d'un sélecteur de colonnes.
+
+    ## La clé nomme un TABLEAU, pas une entité
+
+    Deux écrans qui listent la même entité avec des colonnes différentes sont deux clés. Elle entre
+    dans une clé de stockage : `[a-z0-9][a-z0-9_.-]{0,63}`, et le contrôleur refuse le reste.
+
+    ## La route doit être importée par le projet
+
+    `path('datatable_preferences')` lève si `@DatatableBundle/Controller/DatatablePreferenceController.php`
+    n'a pas été importé dans `config/routes/` — et c'est le bon comportement : une URL absente se
+    voit au premier rendu, pas sous la forme d'un panneau qui n'enregistre rien.
+#}
+data-{{ datatable_stimulus() }}-preferences-url-value="{{ path('datatable_preferences', { key: key }) }}"
+data-{{ datatable_stimulus() }}-preferences-csrf-value="{{ csrf_token(datatable_csrf_token_id('preferences')) }}"

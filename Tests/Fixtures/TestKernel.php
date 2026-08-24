@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Jul6Art\DatatableBundle\Tests\Fixtures;
 
+use Jul6Art\DatatableBundle\Controller\DatatablePreferenceController;
 use Jul6Art\DatatableBundle\DataTable\AdminDataTableConfig;
 use Jul6Art\DatatableBundle\DatatableBundle;
+use Jul6Art\DatatableBundle\Preference\DatatablePreferenceStoreInterface;
 use Jul6Art\DatatableBundle\Twig\DataTableBulkExtension;
 use Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension;
 use Jul6Art\DatatableBundle\Twig\DataTableStatusMapExtension;
@@ -17,6 +19,7 @@ use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
 use Symfony\Component\HttpKernel\Kernel;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
 
 /**
  * Minimal application kernel used by the functional tests.
@@ -32,14 +35,20 @@ use Symfony\Component\HttpKernel\Kernel;
 final class TestKernel extends Kernel
 {
     /**
-     * @param array<string, mixed> $bundleConfig configuration for the "datatable" extension
-     * @param string               $uniqueId     keys the build directory, so two scenarios never
-     *                                           share a compiled container while identical ones
-     *                                           still reuse the cache
+     * @param array<string, mixed> $bundleConfig    configuration for the "datatable" extension
+     * @param bool                 $withPreferences registers what the preferences endpoint needs
+     *                                              and the project owns: a store, a token storage
+     *                                              and a route map. Off by default, so a test
+     *                                              about anything else also proves the endpoint
+     *                                              removes itself cleanly
+     * @param string               $uniqueId        keys the build directory, so two scenarios never
+     *                                              share a compiled container while identical ones
+     *                                              still reuse the cache
      */
     public function __construct(
         string $environment,
         private readonly array $bundleConfig = [],
+        private readonly bool $withPreferences = false,
         private readonly string $uniqueId = 'default',
     ) {
         // Debug mode installs Symfony's error handler and never removes it, which PHPUnit
@@ -118,6 +127,10 @@ final class TestKernel extends Kernel
                     DataTableBulkExtension::class,
                     DataTableCsrfExtension::class,
                     DataTableStatusMapExtension::class,
+                    DatatablePreferenceController::class,
+                    DatatablePreferenceStoreInterface::class,
+                    'security.csrf.token_manager',
+                    'security.token_storage',
                 ];
 
                 foreach ($container->getDefinitions() as $id => $definition) {
@@ -161,5 +174,28 @@ final class TestKernel extends Kernel
         ]);
 
         $container->loadFromExtension('datatable', $this->bundleConfig);
+
+        if ($this->withPreferences) {
+            $this->configurePreferences($container);
+        }
+    }
+
+    /**
+     * The three things the endpoint needs and this bundle deliberately does not provide.
+     *
+     * `security.token_storage` under that exact id is not a shortcut: it is the id SecurityBundle
+     * registers, the one `preferences.yaml` references and the one `PreferenceControllerPass`
+     * looks for. Registering it here — with no SecurityBundle to conflict with — is what lets a
+     * test drive a real request as a real user.
+     */
+    private function configurePreferences(ContainerBuilder $container): void
+    {
+        $container->loadFromExtension('framework', [
+            'router' => ['resource' => __DIR__.'/routes.yaml', 'utf8' => true],
+        ]);
+
+        $container->register('security.token_storage', TokenStorage::class)->setPublic(true);
+        $container->register(InMemoryPreferenceStore::class, InMemoryPreferenceStore::class)->setPublic(true);
+        $container->setAlias(DatatablePreferenceStoreInterface::class, InMemoryPreferenceStore::class)->setPublic(true);
     }
 }

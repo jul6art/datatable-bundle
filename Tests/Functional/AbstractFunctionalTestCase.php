@@ -49,9 +49,11 @@ abstract class AbstractFunctionalTestCase extends TestCase
     final protected function boot(
         string $environment = 'test',
         array $bundleConfig = [],
+        bool $withPreferences = false,
     ): ContainerInterface {
         $uniqueId = substr(md5(serialize([
             $bundleConfig,
+            $withPreferences,
         ])), 0, 12);
 
         // Arguments nommés : une brique absente retire son paramètre du kernel, et un appel
@@ -59,11 +61,24 @@ abstract class AbstractFunctionalTestCase extends TestCase
         $this->kernel = new TestKernel(
             $environment,
             $bundleConfig,
+            withPreferences: $withPreferences,
             uniqueId: $uniqueId,
         );
         $this->kernel->boot();
 
         return $this->kernel->getContainer();
+    }
+
+    /**
+     * The booted kernel, for the tests that need to handle a request rather than read a container.
+     */
+    final protected function kernel(): TestKernel
+    {
+        if (!$this->kernel instanceof TestKernel) {
+            throw new \LogicException('Boot the kernel first.');
+        }
+
+        return $this->kernel;
     }
 
     /**

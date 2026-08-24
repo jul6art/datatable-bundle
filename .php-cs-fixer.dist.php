@@ -17,8 +17,10 @@ $finder = new PhpCsFixer\Finder()
     // la racine passent par `append()` juste après.
     ->in(array_values(array_filter(
         [
+            __DIR__.'/Controller',
             __DIR__.'/DataTable',
             __DIR__.'/DependencyInjection',
+            __DIR__.'/Preference',
             __DIR__.'/Tests',
             __DIR__.'/Twig',
         ],

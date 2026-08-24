@@ -7,8 +7,8 @@ namespace Jul6Art\DatatableBundle\Twig;
 use Twig\Attribute\AsTwigFunction;
 
 /**
- * Tells a template three things it cannot derive on its own: the Stimulus identifier the table
- * controller answers to, and the two CSRF token ids the controller-side checks expect.
+ * Tells a template what it cannot derive on its own: the Stimulus identifier the table controller
+ * answers to, and the three CSRF token ids the controller-side checks expect.
  *
  * ```twig
  * <table data-controller="{{ datatable_stimulus() }}"
@@ -36,7 +36,22 @@ final readonly class DataTableCsrfExtension
         private string $stimulusIdentifier = 'datatable',
         private string $singleTokenId = 'datatable_action',
         private string $bulkTokenId = 'bulk_action',
+        private string $preferencesTokenId = 'datatable_preferences',
+        private string $translationDomain = 'messages',
     ) {
+    }
+
+    /**
+     * The domain the `datatable.*` keys live in.
+     *
+     * A partial cannot derive it, and hard-coding `messages` is what forces every consumer to dump
+     * the table's catalogue into the application's default domain — which a project splitting its
+     * catalogues by functional domain treats as a blocking error.
+     */
+    #[AsTwigFunction(name: 'datatable_translation_domain')]
+    public function translationDomain(): string
+    {
+        return $this->translationDomain;
     }
 
     #[AsTwigFunction(name: 'datatable_stimulus')]
@@ -46,7 +61,8 @@ final readonly class DataTableCsrfExtension
     }
 
     /**
-     * @param string $kind `single` for the per-row POST actions, `bulk` for the /bulk-* endpoints
+     * @param string $kind `single` for the per-row POST actions, `bulk` for the /bulk-* endpoints,
+     *                     `preferences` for the per-user preferences endpoint
      *
      * @throws \InvalidArgumentException on anything else, rather than returning a token id nobody
      *                                   validates
@@ -57,7 +73,8 @@ final readonly class DataTableCsrfExtension
         return match ($kind) {
             'single' => $this->singleTokenId,
             'bulk' => $this->bulkTokenId,
-            default => throw new \InvalidArgumentException(\sprintf('Unknown datatable CSRF token kind "%s". Expected "single" or "bulk".', $kind)),
+            'preferences' => $this->preferencesTokenId,
+            default => throw new \InvalidArgumentException(\sprintf('Unknown datatable CSRF token kind "%s". Expected "single", "bulk" or "preferences".', $kind)),
         };
     }
 }

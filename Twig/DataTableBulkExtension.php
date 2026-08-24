@@ -80,6 +80,13 @@ final readonly class DataTableBulkExtension
     public function __construct(
         private TranslatorInterface $translator,
         private array $actionTypes = self::DEFAULT_ACTION_TYPES,
+        /**
+         * Where the `datatable.*` keys live. The `modal.*` keys below are NOT translated in it: a
+         * confirmation modal's vocabulary is shared with every `ui--modal` on a show page, so it
+         * belongs to the application's own default domain and moving it would be a rename of
+         * something this bundle does not own.
+         */
+        private string $domain = 'messages',
     ) {
     }
 
@@ -108,6 +115,11 @@ final readonly class DataTableBulkExtension
         }
 
         return $left;
+    }
+
+    private function trans(string $key): string
+    {
+        return $this->translator->trans($key, [], $this->domain);
     }
 
     /**
@@ -147,20 +159,20 @@ final readonly class DataTableBulkExtension
         return [
             'datatable' => [
                 'bulk' => [
-                    'selected' => $this->translator->trans('datatable.bulk.selected'),
-                    'choose' => $this->translator->trans('datatable.bulk.choose'),
-                    'apply' => $this->translator->trans('datatable.bulk.apply'),
-                    'clear' => $this->translator->trans('datatable.bulk.clear'),
+                    'selected' => $this->trans('datatable.bulk.selected'),
+                    'choose' => $this->trans('datatable.bulk.choose'),
+                    'apply' => $this->trans('datatable.bulk.apply'),
+                    'clear' => $this->trans('datatable.bulk.clear'),
                 ],
                 'coalescence' => [
-                    'message' => $this->translator->trans('datatable.coalescence.message'),
-                    'refresh' => $this->translator->trans('datatable.coalescence.refresh'),
+                    'message' => $this->trans('datatable.coalescence.message'),
+                    'refresh' => $this->trans('datatable.coalescence.refresh'),
                 ],
                 'confirm' => [
-                    'title' => $this->translator->trans('datatable.confirm.title'),
-                    'message' => $this->translator->trans('datatable.confirm.message'),
-                    'confirm' => $this->translator->trans('datatable.confirm.confirm'),
-                    'cancel' => $this->translator->trans('datatable.confirm.cancel'),
+                    'title' => $this->trans('datatable.confirm.title'),
+                    'message' => $this->trans('datatable.confirm.message'),
+                    'confirm' => $this->trans('datatable.confirm.confirm'),
+                    'cancel' => $this->trans('datatable.confirm.cancel'),
                 ],
                 'modal' => array_merge(
                     $modalSingle,

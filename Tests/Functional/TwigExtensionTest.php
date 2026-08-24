@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Jul6Art\DatatableBundle\Tests\Functional;
 
+use Jul6Art\DatatableBundle\DataTable\AdminDataTableConfig;
 use Jul6Art\DatatableBundle\Twig\DataTableBulkExtension;
 use Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension;
 use Jul6Art\DatatableBundle\Twig\DataTableStatusMapExtension;
@@ -142,11 +143,25 @@ final class TwigExtensionTest extends AbstractFunctionalTestCase
 
     public function testTheStimulusIdentifierAndTokenIdsAreConfigurable(): void
     {
-        $csrf = $this->csrf(['stimulus_identifier' => 'core--datatable', 'csrf' => ['single' => 'row_action', 'bulk' => 'many']]);
+        $csrf = $this->csrf([
+            'stimulus_identifier' => 'core--datatable',
+            'csrf' => ['single' => 'row_action', 'bulk' => 'many', 'preferences' => 'my_prefs'],
+        ]);
 
         self::assertSame('core--datatable', $csrf->stimulusIdentifier());
         self::assertSame('row_action', $csrf->csrfTokenId('single'));
         self::assertSame('many', $csrf->csrfTokenId('bulk'));
+        self::assertSame('my_prefs', $csrf->csrfTokenId('preferences'));
+    }
+
+    /**
+     * The default the endpoint validates against. It is a surface of its own rather than a reuse of
+     * `single`: what it guards is a personal preference, not a business state transition — and the
+     * project rule is one token per surface.
+     */
+    public function testThePreferencesTokenHasItsOwnDefault(): void
+    {
+        self::assertSame('datatable_preferences', $this->csrf()->csrfTokenId('preferences'));
     }
 
     public function testAnUnknownTokenKindThrows(): void
@@ -201,6 +216,115 @@ final class TwigExtensionTest extends AbstractFunctionalTestCase
 
         self::assertStringContainsString('data-tbl-bulk-csrf-value="', $rendered);
         self::assertStringContainsString('data-tbl-single-csrf-value="', $rendered);
+    }
+
+    /**
+     * The preferences partial, rendered through the same route import the documentation asks a
+     * project to write. Two things it must produce and nothing else can: a URL that carries the
+     * table's key, and the token the endpoint validates.
+     *
+     * The URL is the reason this is a functional test. `path()` needs the route to exist, so a
+     * partial that named the route wrongly — or a project that forgot the import — fails loudly
+     * here instead of rendering a panel that saves nothing.
+     */
+    public function testThePreferencesPartialCarriesTheTableKeyInItsUrl(): void
+    {
+        $container = $this->boot(bundleConfig: ['stimulus_identifier' => 'tbl'], withPreferences: true);
+
+        $requestStack = $container->get('request_stack');
+        self::assertInstanceOf(RequestStack::class, $requestStack);
+        $request = new Request();
+        $request->setSession(new Session(new MockArraySessionStorage()));
+        $requestStack->push($request);
+
+        $twig = $container->get('twig');
+        self::assertInstanceOf(Environment::class, $twig);
+
+        $rendered = $twig->render('@Datatable/datatable/_preferences.html.twig', ['key' => 'erp_product']);
+
+        self::assertStringContainsString('data-tbl-preferences-url-value="/datatable/preferences/erp_product"', $rendered);
+        self::assertStringContainsString('data-tbl-preferences-csrf-value="', $rendered);
+    }
+
+    /**
+     * The labels the two panels are built from. They live in the shared translations partial rather
+     * than in the preferences one, because the Stimulus controller reads a single
+     * `translations-value` — a second attribute of the same name would overwrite the first, and the
+     * table would come back with raw keys in its dropdowns.
+     */
+    public function testTheTranslationsPartialCarriesThePanelLabels(): void
+    {
+        $container = $this->boot();
+        $twig = $container->get('twig');
+        self::assertInstanceOf(Environment::class, $twig);
+
+        $rendered = trim($twig->render('@Datatable/datatable/_translations.html.twig'));
+        $json = html_entity_decode((string) preg_replace('/^data-[^=]+="|"$/', '', $rendered), \ENT_QUOTES);
+        $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsArray($decoded);
+
+        $datatable = self::arr($decoded['datatable']);
+
+        self::assertSame(['button', 'hint', 'reset', 'close'], array_keys(self::arr($datatable['columns'])));
+        self::assertSame(['button', 'hint', 'empty', 'name', 'save', 'default', 'delete'], array_keys(self::arr($datatable['views'])));
+        self::assertArrayHasKey('saving', self::arr($datatable['error']));
+    }
+
+    /**
+     * Le domaine des clés `datatable.*` est une CONFIGURATION, pas un littéral.
+     *
+     * Coder `messages` en dur dans le partial force chaque consommateur à verser le catalogue du
+     * tableau dans le domaine par défaut de l'application — ce qu'un projet qui répartit ses
+     * catalogues par domaine fonctionnel traite comme une erreur bloquante (signalé sur `superp`
+     * le 2026-08-24).
+     */
+    public function testTheTranslationDomainOfTheDatatableKeysIsConfigurable(): void
+    {
+        self::assertSame('messages', $this->csrf()->translationDomain(), 'Le défaut ne change pas : aucune rupture.');
+        self::assertSame('datatable', $this->csrf(['translation_domain' => 'datatable'])->translationDomain());
+    }
+
+    /**
+     * Et le partial le lit vraiment. Une clé cherchée dans le mauvais domaine rend la clé brute —
+     * ce que ce test constate en demandant un domaine où rien n'est traduit.
+     */
+    public function testThePartialReadsTheConfiguredDomain(): void
+    {
+        $container = $this->boot(bundleConfig: ['translation_domain' => 'nowhere']);
+        $twig = $container->get('twig');
+        self::assertInstanceOf(Environment::class, $twig);
+
+        $rendered = trim($twig->render('@Datatable/datatable/_translations.html.twig'));
+        $json = html_entity_decode((string) preg_replace('/^data-[^=]+="|"$/', '', $rendered), \ENT_QUOTES);
+        $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsArray($decoded);
+
+        // Pas de catalogue `nowhere` : le traducteur rend la clé, préfixe compris. C'est la preuve
+        // que le domaine traverse bien jusqu'au `|trans`.
+        self::assertSame('datatable.filters', self::arr($decoded['datatable'])['filters']);
+    }
+
+    /**
+     * La carte de statuts et la colonne inter-tenants suivent le même domaine sans le répéter : ce
+     * sont des clés `datatable.*` comme les autres, et les faire suivre à la main sur 46 cartes est
+     * la façon sûre d'en oublier une.
+     */
+    public function testAStatusMapAndTheTenantColumnFollowTheConfiguredDomain(): void
+    {
+        $container = $this->boot(bundleConfig: [
+            'translation_domain' => 'nowhere',
+            'status_maps' => ['quote_status' => ['keys' => ['draft']]],
+            'tenant' => ['endpoint' => '/api/organizations'],
+        ]);
+
+        $status = $container->get(DataTableStatusMapExtension::class);
+        self::assertInstanceOf(DataTableStatusMapExtension::class, $status);
+        $map = self::arr(self::arr(self::arr($status->statusMap(['quote_status']))['datatable'])['quote_status']);
+        self::assertSame('datatable.quote_status.draft', $map['draft']);
+
+        $admin = $container->get(AdminDataTableConfig::class);
+        self::assertInstanceOf(AdminDataTableConfig::class, $admin);
+        self::assertSame('datatable.col.organization', self::arr($admin->tenantFilter())['placeholder']);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
