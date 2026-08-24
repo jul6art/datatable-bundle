@@ -46,6 +46,16 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  *
  * `titleDomain` defaults to `messages` and is worth passing: a project splitting its catalogues by
  * functional domain gets a key resolved against the wrong domain rendered as the raw key.
+ *
+ * ## Declaring wide, showing narrow
+ *
+ * Since per-user preferences exist, a column the reader can hide costs nothing to the reader who
+ * does not want it. The arbitration changed: the question is no longer "does this column deserve
+ * the width?" but "could anyone want to see it?". Pass `hidden: true` for the second kind — the
+ * column is in the picker, absent from the first paint, and one tick away.
+ *
+ * What does NOT change is the SQL: a hidden column is not rendered, but it is still serialised.
+ * `hidden: true` is a display default, never a reason to add a field to a `read` group.
  */
 abstract class AbstractDataTableConfigProvider
 {
@@ -72,18 +82,24 @@ abstract class AbstractDataTableConfigProvider
     /**
      * Sortable column.
      *
+     * `$hidden` declares a column the table OFFERS without SHOWING: it is absent on first open and
+     * the user ticks it in the column picker. It is what makes a wide table possible — see the note
+     * on the class above — and it only means anything for a table that opted into per-user
+     * preferences. Without them there is no picker, so a hidden column would be unreachable; the
+     * flag is then ignored and the column shows, which is the lesser surprise.
+     *
      * @param array<string, mixed> $extra
      *
      * @return array<string, mixed>
      */
-    protected function column(string $data, string $titleKey, string $titleDomain = 'messages', ?string $sortField = null, ?string $render = null, int $responsivePriority = 5, array $extra = []): array
+    protected function column(string $data, string $titleKey, string $titleDomain = 'messages', ?string $sortField = null, ?string $render = null, int $responsivePriority = 5, array $extra = [], bool $hidden = false): array
     {
         return array_merge([
             'data' => $data,
             'title' => $this->t($titleKey, $titleDomain),
             'responsivePriority' => $responsivePriority,
             'sortField' => $sortField ?? $data,
-        ], $render ? ['render' => $render] : [], $extra);
+        ], $render ? ['render' => $render] : [], $hidden ? ['hidden' => true] : [], $extra);
     }
 
     /**
@@ -93,14 +109,14 @@ abstract class AbstractDataTableConfigProvider
      *
      * @return array<string, mixed>
      */
-    protected function readOnlyColumn(string $data, string $titleKey, string $titleDomain = 'messages', ?string $render = null, int $responsivePriority = 5, array $extra = []): array
+    protected function readOnlyColumn(string $data, string $titleKey, string $titleDomain = 'messages', ?string $render = null, int $responsivePriority = 5, array $extra = [], bool $hidden = false): array
     {
         return array_merge([
             'data' => $data,
             'title' => $this->t($titleKey, $titleDomain),
             'responsivePriority' => $responsivePriority,
             'orderable' => false,
-        ], $render ? ['render' => $render] : [], $extra);
+        ], $render ? ['render' => $render] : [], $hidden ? ['hidden' => true] : [], $extra);
     }
 
     // ── Filter helpers ─────────────────────────────────────────

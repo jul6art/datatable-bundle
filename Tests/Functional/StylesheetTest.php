@@ -225,6 +225,28 @@ final class StylesheetTest extends TestCase
         self::assertStringContainsString('panel.getBoundingClientRect().left < bounds.left', $js);
     }
 
+    /**
+     * Une colonne peut être OFFERTE sans être MONTRÉE.
+     *
+     * C'est ce qui rend une table large possible : depuis les préférences par utilisateur, une
+     * colonne que le lecteur peut masquer ne coûte rien à celui qui n'en veut pas, donc la question
+     * n'est plus « mérite-t-elle la largeur ? » mais « quelqu'un pourrait-il vouloir la voir ? ».
+     *
+     * Les deux points que ce test fige sont ceux dont l'oubli se paierait en production :
+     * `hidden` n'est honoré que si la table a des préférences (sans sélecteur, une colonne masquée
+     * serait inatteignable), et une colonne AJOUTÉE depuis la dernière sauvegarde reprend le défaut
+     * déclaré — sinon livrer un lot de colonnes masquées élargirait la table de tous les
+     * utilisateurs qui l'avaient déjà arrangée.
+     */
+    public function testAColumnCanBeOfferedWithoutBeingShown(): void
+    {
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertStringContainsString('visible: !(this._hasPreferences && col.hidden === true)', $js);
+        self::assertStringContainsString('const declaredDefaults = new Map(this._defaultColumnPrefs()', $js);
+        self::assertStringContainsString('declaredDefaults.get(col.data) !== false', $js);
+    }
+
     private static function read(string $name): string
     {
         return (string) file_get_contents(\dirname(__DIR__, 2).'/assets/styles/'.$name);

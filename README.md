@@ -362,6 +362,29 @@ are two keys. Pattern: `[a-z0-9][a-z0-9_.-]{0,63}`.
 Without the include, the table renders exactly as before — no request, no buttons. A table with
 three columns does not need a column picker.
 
+### Declaring wide, showing narrow
+
+A column the reader can hide costs nothing to the reader who does not want it, so the arbitration
+changed: the question is no longer "does this column deserve the width?" but "could anyone want to
+see it?". Pass `hidden: true` for the second kind — the column is in the picker, absent from the
+first paint, one tick away:
+
+```php
+$this->readOnlyColumn('parent', 'erp.product.fields.parent', 'erp', render: 'iri',
+    extra: ['resolveField' => 'name'], responsivePriority: 10, hidden: true),
+```
+
+Three things worth knowing:
+
+- the flag is honoured **only** when the table opted into preferences — without a picker a hidden
+  column would be unreachable, so it is ignored and the column shows. A provider can therefore
+  declare `hidden` before its template opts in;
+- a column **declared since** a user's last save is added with the default the provider asked for,
+  not visible. Shipping a batch of hidden columns does not widen the table of the people who had
+  already arranged it;
+- it is a DISPLAY default. A hidden column is still serialised, so `hidden: true` is never a reason
+  to add a field to a `read` group.
+
 ### What the user gets
 
 | Panel | Actions |

@@ -202,9 +202,21 @@ export default class extends Controller {
         return pref ? pref.visible : true;
     }
 
-    /** Everything declared, visible, in the order the provider wrote it. */
+    /**
+     * Everything declared, in the order the provider wrote it — visible unless the column asked not
+     * to be.
+     *
+     * `hidden: true` is how a table offers a column without showing it: it is in the picker, absent
+     * from the first paint, one tick away. It is honoured ONLY when this table has preferences —
+     * without a picker a hidden column would be unreachable, so the flag is ignored and the column
+     * shows. That is the lesser surprise, and it means a provider can declare `hidden` before its
+     * template opts in.
+     */
     _defaultColumnPrefs() {
-        return this.columnsValue.map(col => ({ key: col.data, visible: true }));
+        return this.columnsValue.map(col => ({
+            key: col.data,
+            visible: !(this._hasPreferences && col.hidden === true),
+        }));
     }
 
     /**
@@ -250,9 +262,17 @@ export default class extends Controller {
         const kept = stored.filter(pref => pref && declared.has(pref.key));
         const seen = new Set(kept.map(pref => pref.key));
 
+        // A column DECLARED SINCE the last save is appended with the default the provider asked
+        // for, not with `visible: true`. Without this, shipping a batch of `hidden` columns would
+        // widen the table for every user who already had preferences stored — precisely the people
+        // who had arranged it on purpose.
+        const declaredDefaults = new Map(this._defaultColumnPrefs().map(pref => [pref.key, pref.visible]));
+
         this._columnPrefs = [
             ...kept.map(pref => ({ key: pref.key, visible: pref.visible !== false })),
-            ...this.columnsValue.filter(col => !seen.has(col.data)).map(col => ({ key: col.data, visible: true })),
+            ...this.columnsValue
+                .filter(col => !seen.has(col.data))
+                .map(col => ({ key: col.data, visible: declaredDefaults.get(col.data) !== false })),
         ];
 
         // Never leave a table with no column at all: a stored blob that hid everything (an older

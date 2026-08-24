@@ -23,6 +23,8 @@ final class WidgetDataTableConfigProvider extends AbstractDataTableConfigProvide
             $this->column('name', 'widget.field.name', 'widget'),
             $this->column('reference', 'widget.field.reference', 'widget', sortField: 'sortableReference'),
             $this->readOnlyColumn('tags', 'widget.field.tags', 'widget', render: 'badges'),
+            // Offerte sans être montrée : dans le sélecteur, absente du premier rendu.
+            $this->column('notes', 'widget.field.notes', 'widget', hidden: true),
         ];
     }
 

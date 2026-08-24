@@ -41,6 +41,24 @@ final class DataTableTest extends AbstractFunctionalTestCase
     }
 
     /**
+     * Une colonne peut être OFFERTE sans être MONTRÉE.
+     *
+     * Le drapeau ne dit rien de plus : c'est un défaut d'AFFICHAGE, lu par le contrôleur Stimulus
+     * au premier rendu. Il ne retire pas le champ de la réponse — une colonne masquée est toujours
+     * sérialisée — donc ce n'est jamais une raison d'ajouter un champ à un groupe `read`.
+     */
+    public function testAColumnCanBeDeclaredHidden(): void
+    {
+        $columns = $this->provider()->getColumns();
+
+        self::assertSame('notes', $columns[4]['data']);
+        self::assertTrue($columns[4]['hidden']);
+        // Les autres n'annoncent rien : l'absence de clé est le défaut, pas `hidden: false`.
+        self::assertArrayNotHasKey('hidden', $columns[0]);
+        self::assertArrayNotHasKey('hidden', $columns[3]);
+    }
+
+    /**
      * Chaque libellé passe par le traducteur. C'est le seul garde-fou contre un en-tête de colonne
      * affiché comme clé brute : une configuration de datatable n'a pas de sortie attendue, donc
      * aucun test ne l'attrape autrement qu'ici.
