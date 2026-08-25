@@ -2274,13 +2274,23 @@ export default class extends Controller {
         th.appendChild(wrapper);
     }
 
-    /** `YYYY-MM-DD` → date locale courte, dans la langue de la table. */
+    /**
+     * `YYYY-MM-DD` → `DD/MM/YYYY`.
+     *
+     * ⚠️ Le format est FIXE, il ne suit pas la langue de la table. `toLocaleDateString('en', …)`
+     * rend `08/25/2026` : mêmes chiffres, ordre inverse — donc une date qu'un lecteur francophone
+     * lit à l'envers sans rien voir d'anormal tant que le jour est ≤ 12. La règle du projet est
+     * `DD/MM/YYYY HH:mm` partout, quelle que soit la langue de l'interface.
+     */
     _formatCivilDate(civil) {
         const [year, month, day] = civil.split('-').map(Number);
 
-        return new Date(year, month - 1, day).toLocaleDateString(this.languageValue || undefined, {
-            day: '2-digit', month: '2-digit', year: 'numeric',
-        });
+        return `${this._pad2(day)}/${this._pad2(month)}/${year}`;
+    }
+
+    /** Deux chiffres, zéro devant : `5` → `05`. */
+    _pad2(value) {
+        return String(value).padStart(2, '0');
     }
 
     // ── Date timezone helpers (report 2026-05-23 § B.4) ────────
@@ -2552,12 +2562,22 @@ export default class extends Controller {
                 if (!data) return '—';
                 return `<span class="font-mono text-xs text-accent-600">${data}</span>`;
             },
+            // ⚠️ `DD/MM/YYYY HH:mm`, FIXE — pas `dateStyle: 'short'`.
+            //
+            // Le format court d'`Intl` suit la langue de la table : en anglais, `8/25/26`. Mêmes
+            // chiffres que `25/08/26`, ordre inverse, et rien à l'écran ne dit lequel des deux on
+            // regarde — un `03/04/26` est illisible sans savoir quelle locale l'a rendu. La règle
+            // du projet est un seul format, partout, quelle que soit la langue de l'interface.
+            //
+            // L'HEURE reste convertie dans le fuseau du navigateur : `new Date(iso)` le fait, et
+            // c'est ce qu'on veut d'un horodatage — seule la MISE EN FORME est figée.
             date: (data) => {
                 if (!data) return '—';
-                return new Intl.DateTimeFormat(this.languageValue, {
-                    dateStyle: 'short',
-                    timeStyle: 'short'
-                }).format(new Date(data));
+                const d = new Date(data);
+                if (Number.isNaN(d.getTime())) return '—';
+
+                return `${this._pad2(d.getDate())}/${this._pad2(d.getMonth() + 1)}/${d.getFullYear()}`
+                    + ` ${this._pad2(d.getHours())}:${this._pad2(d.getMinutes())}`;
             },
             // P11 (report 2026-05-31) — for pure DATE columns (Doctrine
             // `date_immutable`: issueDate, dueDate, deliveryDate…) format the
@@ -2568,10 +2588,14 @@ export default class extends Controller {
             dateOnly: (data) => {
                 if (!data) return '—';
                 const m = String(data).match(/^(\d{4})-(\d{2})-(\d{2})/);
-                const d = m
-                    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-                    : new Date(data);
-                return new Intl.DateTimeFormat(this.languageValue, { dateStyle: 'short' }).format(d);
+                if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+
+                const d = new Date(data);
+                if (Number.isNaN(d.getTime())) return '—';
+
+                // ⚠️ Même format fixe que `date`, sans l'heure : une échéance n'en a pas, et en
+                // afficher une laisserait croire à une précision que la donnée n'a pas.
+                return `${this._pad2(d.getDate())}/${this._pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
             },
             colorSwatch: (data) => {
                 if (!data) return '—';

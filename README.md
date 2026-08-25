@@ -229,6 +229,12 @@ The controller ships twenty generic renderers: `statusBadge`, `activeBadge`, `bo
 `colorSwatch`, `country`, `currency`, `number0`, `number2`, `percent0`, `fileSize`, `durationMs`,
 `chipList`.
 
+> ⚠️ **Dates render as `DD/MM/YYYY HH:mm` (`dateOnly`: `DD/MM/YYYY`), in every language.** The
+> format is deliberately NOT locale-driven: `Intl`'s short style renders `8/25/26` in English and
+> `25/08/26` in French — the same digits in the opposite order, with nothing on screen to say
+> which one you are reading. A `03/04/26` is unreadable without knowing the locale that produced
+> it. The time part is still converted to the reader's timezone; only the layout is fixed.
+
 Everything with business vocabulary in it is yours:
 
 ```js
