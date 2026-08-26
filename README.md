@@ -391,6 +391,16 @@ Three things worth knowing:
 - it is a DISPLAY default. A hidden column is still serialised, so `hidden: true` is never a reason
   to add a field to a `read` group.
 
+### `resolveField` works on mobile too
+
+An `iri` column reads its label from the field named by `extra: ['resolveField' => …]`, and until
+1.4.1 that field was honoured on the desktop table but not in the mobile card list: the card looked
+up its column descriptor by object identity, and `_columns` is a getter over a Stimulus value —
+which re-parses its JSON attribute on every read, so no two reads are ever `===`. Every lookup
+missed, and every renderer fell back to its default. `iri` defaults to `resolveField: 'name'`, so
+tables whose relations expose `name` never noticed; a column resolving anything else (`label`,
+`fullName`, `reference`) showed a dash on a phone and the right value on a laptop.
+
 ### What the user gets
 
 | Panel | Actions |

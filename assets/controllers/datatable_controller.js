@@ -3265,7 +3265,17 @@ export default class extends Controller {
         // it subtract the bulk offset and index the effective column list. Handing them the
         // position within the card's own column subset pointed at the wrong descriptor — or at
         // -1 on a table with bulk actions.
-        const metaCol = (col) => ({ col: this._columns.indexOf(col) + this._bulkOffset });
+        //
+        // ⚠️ The index is found BY KEY, never by object identity. `_columns` is a getter over
+        // `this.columnsValue`, and a Stimulus value getter RE-PARSES its JSON attribute on every
+        // read: two accesses yield equal objects that are never `===`. `indexOf(col)` therefore
+        // returned -1 for every column, `meta.col` collapsed to the bulk offset, and each renderer
+        // read the descriptor of column -1 — undefined. Renderers that fall back to a default
+        // (`iri` → `resolveField: 'name'`) kept working by luck, so the defect only surfaced on the
+        // first table whose `resolveField` was something else: an asset column resolving `label`
+        // showed a dash on mobile while the desktop table showed the value (wovex, ADR-0010).
+        const all = this._columns;
+        const metaCol = (col) => ({ col: all.findIndex(c => c.data === col.data) + this._bulkOffset });
 
         // Find the "primary" column (responsivePriority 1 or first column)
         const primaryCol = columns.find(c => c.responsivePriority === 1) || columns[0];
