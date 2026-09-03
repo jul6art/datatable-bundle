@@ -21,6 +21,15 @@
     segment par segment (`value?.[k]`), donc `{'a.b': '…'}` ne se résout jamais et `t('a.b')`
     rend la clé brute.
 
+    ⚠️ **`bulk.select_all` et `bulk.select_row` sont les `aria-label` des cases de sélection de
+    masse**, et ils étaient écrits en dur EN FRANÇAIS dans le contrôleur Stimulus : un lecteur
+    d'écran anglophone, néerlandophone ou germanophone entendait du français, sur les trois
+    produits. Corrigé le 2026-09-03, gardé par `ControllerLocalisationTest`.
+
+    Ils passent par ici et non par le `getLanguageConfig()` du contrôleur, qui porte une table de
+    langues DANS le JS : elle ne connaît que `fr` et `en`, et n'a aucune raison d'apprendre les
+    cinq langues d'un produit. Le serveur a le traducteur.
+
     Le domaine vient de `datatable.translation_domain` et non d'un littéral : un projet qui répartit
     ses catalogues par domaine fonctionnel met ces clés dans `translations/datatable.<locale>.yaml`,
     et les y chercher dans `messages` rendrait la clé brute.
@@ -71,6 +80,10 @@ data-{{ datatable_stimulus() }}-translations-value="{{ {
             'save': 'datatable.views.save'|trans({}, domain),
             'default': 'datatable.views.default'|trans({}, domain),
             'delete': 'datatable.views.delete'|trans({}, domain),
+        },
+        'bulk': {
+            'select_all': 'datatable.bulk.select_all'|trans({}, domain),
+            'select_row': 'datatable.bulk.select_row'|trans({}, domain),
         },
         'coalescence': {
             'message': 'datatable.coalescence.message'|trans({}, domain),

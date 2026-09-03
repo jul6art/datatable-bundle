@@ -2386,13 +2386,17 @@ export default class extends Controller {
         if (this._bulkActions.length > 0) {
             cols.unshift({
                 data: null,
-                title: '<input type="checkbox" class="dt-bulk-select-all" aria-label="Tout sélectionner">',
+                // ⚠️ `this.t()` et non une chaîne en dur : ces deux `aria-label` étaient écrits
+                // en français, donc lus en français par tout lecteur d'écran quelle que soit la
+                // langue de la page. Ils sont les seuls libellés de ce fichier qu'un utilisateur
+                // n'ENTEND que s'il ne peut pas voir la case — d'où l'oubli, et d'où sa gravité.
+                title: `<input type="checkbox" class="dt-bulk-select-all" aria-label="${this._escHtml(this.t('bulk.select_all'))}">`,
                 orderable: false,
                 searchable: false,
                 responsivePriority: 1,
                 className: 'dt-bulk-checkbox-col',
                 render: (data, type, row) =>
-                    `<input type="checkbox" class="dt-bulk-select-row" data-id="${row.id}" aria-label="Sélectionner">`,
+                    `<input type="checkbox" class="dt-bulk-select-row" data-id="${row.id}" aria-label="${this._escHtml(this.t('bulk.select_row'))}">`,
             });
         }
 
