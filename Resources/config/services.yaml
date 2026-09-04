@@ -12,6 +12,15 @@ services:
     # Le socle des fournisseurs de configuration est abstrait : ce sont ses sous-classes, côté
     # projet, qui sont des services. Il n'y a donc rien à déclarer pour lui.
 
+    # Les clés que le JavaScript lit sans qu'un scanner puisse les nommer : celles passées par
+    # variable, et les cartes d'énumérations du projet. Lu par le garde de traduction du projet
+    # (`AbstractJsTranslationTestCase`), pas par un gabarit — d'où sa présence ici et non dans
+    # `twig.yaml` : une application qui rend ses tableaux autrement en a autant besoin.
+    Jul6Art\DatatableBundle\Translation\DeclaredTranslationKeys:
+        public: true
+        arguments:
+            $statusMaps: []
+
     # La colonne et le filtre inter-tenants. Les trois arguments sont posés par l'extension ;
     # un `endpoint` vide signifie « application mono-tenant », et le service n'est alors jamais
     # appelé.

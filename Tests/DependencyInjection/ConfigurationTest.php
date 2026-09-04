@@ -32,7 +32,6 @@ final class ConfigurationTest extends TestCase
             'translation_domain' => 'messages',
             'stimulus_identifier' => 'datatable',
             'csrf' => ['single' => 'datatable_action', 'bulk' => 'bulk_action', 'preferences' => 'datatable_preferences'],
-            'bulk_actions' => [],
             'status_maps' => [],
             'tenant' => [
                 // Vide à dessein : une application mono-tenant ne déclare pas un endpoint qu'elle
@@ -51,20 +50,6 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($this->process([['enabled' => true], ['enabled' => false]])['enabled']);
     }
 
-    /**
-     * Deux fichiers de configuration qui déclarent chacun des types les **cumulent** : une liste de
-     * scalaires se concatène à la fusion. Ce qui ne se cumule pas, c'est la valeur par **défaut**
-     * du nœud — dès que le projet écrit quoi que ce soit, elle est remplacée. C'est pour cette
-     * raison que les treize types du bundle vivent dans une constante refusionnée par
-     * `DatatableExtension`, et pas dans un `defaultValue()` : sinon déclarer `invite` les
-     * effacerait tous. `TwigExtensionTest::testDeclaringATypeDoesNotEraseTheDefaults()` le vérifie
-     * de l'autre côté.
-     */
-    public function testTwoConfigsDeclaringActionTypesAccumulate(): void
-    {
-        self::assertSame(['a', 'b'], $this->process([['bulk_actions' => ['a']], ['bulk_actions' => ['b']]])['bulk_actions']);
-    }
-
     public function testAStatusMapRequiresAtLeastOneKey(): void
     {
         $this->expectException(InvalidConfigurationException::class);
@@ -72,19 +57,21 @@ final class ConfigurationTest extends TestCase
         $this->process([['status_maps' => ['quote' => ['keys' => []]]]]);
     }
 
-    public function testAStatusMapFillsInItsPathAndDomain(): void
+    /**
+     * ⚠️ `path` et `domain` ont disparu du nœud avec l'arbre JSON qu'ils décrivaient. Une carte
+     * était TRANSPORTÉE — traduite côté serveur, imbriquée sous `path`, postée dans un attribut —
+     * et `superp` en avait dont le `path` et le `key_prefix` différaient vraiment. Le navigateur a
+     * le catalogue : le préfixe EST la clé.
+     */
+    public function testAStatusMapOnlyDeclaresItsPrefixAndItsCases(): void
     {
         $maps = $this->process([['status_maps' => ['quote' => ['keys' => ['draft']]]]])['status_maps'];
         self::assertIsArray($maps);
 
-        // Comparaison insensible à l'ordre des clés : celui-ci suit l'ordre de déclaration dans
-        // le fichier de configuration, pas celui de l'arbre, et n'engage rien.
         self::assertEqualsCanonicalizing([
-            'path' => [],
-            'domain' => null,
             'key_prefix' => null,
             'keys' => ['draft'],
-        ], $maps['quote'], 'Le nœud laisse path et key_prefix vides ; c\'est l\'extension qui les dérive du nom.');
+        ], $maps['quote'], 'Le nœud laisse key_prefix vide ; c\'est l\'extension qui le dérive du nom.');
     }
 
     /**

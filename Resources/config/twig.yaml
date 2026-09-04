@@ -6,15 +6,6 @@ services:
         autowire: true
         autoconfigure: true
 
-    Jul6Art\DatatableBundle\Twig\DataTableBulkExtension:
-        arguments:
-            $actionTypes: []
-            $domain: 'messages'
-
-    Jul6Art\DatatableBundle\Twig\DataTableStatusMapExtension:
-        arguments:
-            $maps: []
-
     Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension:
         arguments:
             $stimulusIdentifier: 'datatable'

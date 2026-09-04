@@ -6,9 +6,8 @@ namespace Jul6Art\DatatableBundle\DependencyInjection;
 
 use Jul6Art\DatatableBundle\Controller\DatatablePreferenceController;
 use Jul6Art\DatatableBundle\DataTable\AdminDataTableConfig;
-use Jul6Art\DatatableBundle\Twig\DataTableBulkExtension;
+use Jul6Art\DatatableBundle\Translation\DeclaredTranslationKeys;
 use Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension;
-use Jul6Art\DatatableBundle\Twig\DataTableStatusMapExtension;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -79,27 +78,18 @@ class DatatableExtension extends Extension
             // `datatable.*` key like the others, so it moves with them.
             ->setArgument('$tenantLabelDomain', self::asString($tenant['label_domain'] ?? null, $domain));
 
-        // `twig/twig` est un `suggest`. Sans lui, les trois extensions et les deux partials
-        // n'ont pas de consommateur, et les enregistrer rendrait le conteneur inchargeable.
+        // Déclaré même sans Twig : c'est un service de TEST autant que de rendu, et la moitié PHP
+        // du bundle sert aussi à une application qui rend ses tableaux autrement.
+        $container->getDefinition(DeclaredTranslationKeys::class)
+            ->setArgument('$statusMaps', self::normalizeMaps($config['status_maps'] ?? []));
+
+        // `twig/twig` est un `suggest`. Sans lui, l'extension et les partials n'ont pas de
+        // consommateur, et les enregistrer rendrait le conteneur inchargeable.
         if (!class_exists(Environment::class)) {
             return;
         }
 
         $loader->load('twig.yaml');
-
-        // ⚠️ Fusion, pas substitution. `bulk_actions` est un nœud prototype : ce que le projet
-        // déclare *remplace* la valeur par défaut. Reconstituer la table complète ici est la
-        // seule façon d'obtenir « mes types en plus des vôtres », qui est ce que tout le monde
-        // attend en lisant la clé.
-        $container->getDefinition(DataTableBulkExtension::class)
-            ->setArgument('$actionTypes', array_values(array_unique([
-                ...DataTableBulkExtension::DEFAULT_ACTION_TYPES,
-                ...self::stringList($config['bulk_actions'] ?? []),
-            ])))
-            ->setArgument('$domain', $domain);
-
-        $container->getDefinition(DataTableStatusMapExtension::class)
-            ->setArgument('$maps', self::normalizeMaps($config['status_maps'] ?? [], $domain));
 
         $container->getDefinition(DataTableCsrfExtension::class)
             ->setArgument('$stimulusIdentifier', $identifier)
@@ -139,13 +129,17 @@ class DatatableExtension extends Extension
     }
 
     /**
-     * Fills in the three defaults a map almost never states — where it is nested, which domain it
-     * reads and how its translation keys are prefixed — so the rest of the code reads a complete
-     * shape.
+     * Fills in the one default a map almost never states: how its cases are prefixed to form a
+     * catalogue key.
      *
-     * @return array<string, array{path: list<string>, domain: string, key_prefix: string, keys: list<string>}>
+     * ⚠️ `path` and `domain` are gone with the JSON tree they described. A map used to be
+     * transported — translated server-side, nested under `path`, posted into an HTML attribute —
+     * and `superp` had maps whose `path` and `key_prefix` genuinely differed. The browser now
+     * holds the catalogue, so the prefix is simply the key.
+     *
+     * @return array<string, array{key_prefix: string, keys: list<string>}>
      */
-    private static function normalizeMaps(mixed $maps, string $domain): array
+    private static function normalizeMaps(mixed $maps): array
     {
         if (!\is_array($maps)) {
             return [];
@@ -157,12 +151,9 @@ class DatatableExtension extends Extension
                 continue;
             }
 
-            $path = self::stringList($map['path'] ?? []);
             $keyPrefix = $map['key_prefix'] ?? null;
 
             $normalized[$name] = [
-                'path' => [] === $path ? ['datatable', $name] : $path,
-                'domain' => self::asString($map['domain'] ?? null, $domain),
                 'key_prefix' => \is_string($keyPrefix) && '' !== $keyPrefix ? $keyPrefix : 'datatable.'.$name.'.',
                 'keys' => self::stringList($map['keys'] ?? []),
             ];

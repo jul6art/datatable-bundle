@@ -55,11 +55,13 @@ datatable:
     # Leaves the bundle installed and inert when false.
     enabled: true
 
-    # Where the `datatable.*` keys live — the ones the shipped partial, the bulk bar, the status
-    # maps and the tenant column read. Defaults to `messages`; a project that splits its catalogues
-    # by functional domain sets `datatable` and puts `translations/datatable.<locale>.yaml` next to
-    # its others. The `modal.*` keys are NOT covered: a confirmation modal's vocabulary is shared
-    # with every `ui--modal` on a show page, so it belongs to the application's default domain.
+    # Where the `datatable.*` keys the SERVER renders live — column headers, filter labels, the
+    # tenant column. Defaults to `messages`; a project that splits its catalogues by functional
+    # domain sets its own.
+    #
+    # ⚠️ This is NOT the domain the browser reads. Since v2 the JavaScript resolves its keys
+    # against the catalogue dumped by `symfony/ux-translator`, whose single domain is configured
+    # by `core.js_translations.domain` — `javascript` by default. See “JavaScript translations”.
     translation_domain: messages
 
     # The Stimulus identifier the table controller answers to. It decides the data-attribute
@@ -73,21 +75,14 @@ datatable:
         bulk: bulk_action                  # the /bulk-* endpoints
         preferences: datatable_preferences # the per-user preferences endpoint (X-CSRF-Token header)
 
-    # Added to the thirteen types the bundle ships, never replacing them.
-    bulk_actions: [invite, validate]
-
-    # The enum catalogues the badge renderers read. Business vocabulary, hence configuration.
+    # The enum catalogues the badge renderers read — DECLARED, so the project's translation guard
+    # knows their keys are alive. Business vocabulary, hence configuration.
     status_maps:
         quote_status:
-            keys: [draft, sent, accepted, rejected]
+            keys: [draft, sent, accepted, rejected]   # → datatable.quote_status.<case>
         expense_status:
-            domain: hr
-            key_prefix: 'hr.expense.status.'
+            key_prefix: 'hr.expense.status.'          # → hr.expense.status.<case>
             keys: [draft, submitted, approved]
-        country:
-            path: [organization, country]
-            key_prefix: 'organization.country.'
-            keys: [fr, be, lu]
 
     # Only for a multi-tenant back office. Leave the endpoint empty otherwise.
     tenant:
@@ -99,8 +94,8 @@ datatable:
 `datatable.csrf.single`, `datatable.csrf.bulk` and `datatable.csrf.preferences` are exposed as
 container parameters.
 
-`status_maps.*.domain` and `tenant.label_domain` default to `translation_domain` rather than to
-`messages`, so moving the catalogue does not mean repeating the domain on forty-six maps.
+`tenant.label_domain` defaults to `translation_domain` rather than to `messages`, so moving the
+catalogue does not mean repeating the domain.
 
 Usage
 -----
@@ -167,10 +162,7 @@ final class UserDataTableConfigProvider extends AbstractDataTableConfigProvider
            data-{{ datatable_stimulus() }}-actions-value="{{ actions_config|json_encode|e('html_attr') }}"
            data-{{ datatable_stimulus() }}-searchable-fields-value='["email","firstName","lastName"]'
            data-{{ datatable_stimulus() }}-default-order-value='[[1, "asc"]]'
-           {{ include('@Datatable/datatable/_csrf.html.twig') }}
-           {{ include('@Datatable/datatable/_translations.html.twig', {
-               extra_translations: datatable_status_map(['quote_status']),
-           }) }}>
+           {{ include('@Datatable/datatable/_csrf.html.twig') }}>
         <thead>
             <tr>
                 {% for column in columns_config %}<th>{{ column.title }}</th>{% endfor %}
@@ -254,9 +246,11 @@ An entry is `(controller) => (data, type, row, meta) => string`. The extra hop e
 renderer needs the controller — `c.t()` for its labels, `c.columnsValue` to read its own column's
 configuration — and an arrow function has no `this` to bind.
 
-The labels a `badge()` reads come from `datatable_status_map()`, which is why the two share a
-vocabulary: `badge('datatable.quote_status', …)` reads what the `quote_status` entry of
-`datatable.status_maps` wrote.
+The labels a `badge()` reads come straight from the catalogue: `badge('datatable.quote_status', …)`
+resolves `datatable.quote_status.<case>` through `c.t()`. The `labelPath` is therefore a **catalogue
+key prefix**, and it is the same string as the `key_prefix` of the matching `datatable.status_maps`
+entry — the two go in pairs, and {@see Translation\DeclaredTranslationKeys} is what tells the
+project's translation guard that those keys are alive.
 
 ### 5. Per-row and bulk endpoints
 
@@ -358,8 +352,7 @@ feature opt-in in one line of Twig instead of a controller per entity.
 ```twig
 <table data-controller="{{ datatable_stimulus() }}"
        …
-       {{ include('@Datatable/datatable/_preferences.html.twig', { key: 'erp_product' }) }}
-       {{ include('@Datatable/datatable/_translations.html.twig') }}></table>
+       {{ include('@Datatable/datatable/_preferences.html.twig', { key: 'erp_product' }) }}></table>
 ```
 
 The key names a **table**, not an entity: two screens listing the same entity with different columns
@@ -462,6 +455,73 @@ The token endpoint returns `{ token, subscribed: [...] }`, and `subscribed[]` is
 both the JWT allow-list and the subscription list — so the topics are decided in one place instead
 of drifting between a template and a claim. `jul6art/push-bundle` mints the token
 (`SubscriberCookieFactory`) and publishes the changes (`EntityChangePublisher`).
+
+JavaScript translations
+-----------------------
+
+Since **v2** the controller reads its labels from the catalogue `symfony/ux-translator` dumps into
+the browser, through the registry of `jul6art/core-bundle`. There is no translation attribute on
+the table any more.
+
+### What a project has to do
+
+1. Install the socle, as described in the `core-bundle` README (`symfony/ux-translator`, the
+   `@symfony/ux-translator` alias, `registerTranslator()` in `assets/app.js`).
+2. Add `core-bundle` to `FRONT_BUNDLES` in `bundle-assets.js`: the mixin now re-exports
+   `@jul6art/core-bundle/mixins/translatable`, and without the alias the build fails to resolve.
+3. Move the `datatable.*` keys the browser reads into the `javascript` domain — and with them the
+   `modal.*` keys, **renamed** `datatable.modal.*` (see below).
+4. Remove every `{{ include('@Datatable/datatable/_translations.html.twig') }}` from the templates.
+5. Point `declaredKeys()` / `declaredPrefixes()` of the project's `AbstractJsTranslationTestCase`
+   at `Translation\DeclaredTranslationKeys`.
+
+### Breaking changes, and what each one was
+
+| Gone | Why | What replaces it |
+| --- | --- | --- |
+| `@Datatable/datatable/_translations.html.twig` | it posted 8.7 kB of escaped JSON into every page carrying a table, re-sent on every request and never cached | the catalogue, dumped once into the JS bundle |
+| `datatable_status_map()` | it TRANSPORTED enum labels; the browser now has them | `status_maps` stays, as a **declaration** read by `DeclaredTranslationKeys` |
+| `datatable_bulk_translations()` | same, for the bulk bar and the modals | the keys are read directly |
+| `|merge_recursive` | it existed to graft one translation tree onto another | — |
+| `status_maps.*.path` | it said where to nest the dictionary in that tree | — |
+| `status_maps.*.domain` | one domain now, for the whole browser | `core.js_translations.domain` |
+| `bulk_actions` | it existed to enumerate which `modal.<type>.*` keys to translate and ship | the prefix `datatable.modal.` is declared instead |
+| `modal.<type>.*` (key names) | the controller has always read them as `datatable.modal.<type>.*`; the Twig extension re-prefixed them on the way out | rename the catalogue keys to `datatable.modal.*` |
+
+⚠️ **Two aria-labels were fixed on the way.** The controller read `bulk.select_all` while the
+partial sent `datatable.bulk.select_all`, so every bulk-selection checkbox of every back office
+carried the literal string `bulk.select_all` as its aria-label. Nothing could see it: the guard
+checked each half in its own file. The keys are now `datatable.bulk.select_all` and
+`datatable.bulk.select_row` on both sides — which, since there is only one side left, is simply
+the key.
+
+### New keys to translate
+
+`getLanguageConfig()` no longer carries a `{ fr, en }` table of hard-coded sentences — eleven of
+them in French, with English left almost empty, which is why a five-locale product fell back to a
+half-filled English on three of its languages. They are now catalogue keys:
+
+```yaml
+# translations/javascript.<locale>.yaml
+datatable:
+    dt:
+        processing: 'Traitement…'
+        search: 'Rechercher :'
+        length_menu: 'Afficher _MENU_ éléments'
+        info: 'Affichage de _START_ à _END_ sur _TOTAL_ éléments'
+        info_empty: 'Affichage de 0 à 0 sur 0 élément'
+        info_filtered: '(filtré de _MAX_ éléments au total)'
+        loading: 'Chargement…'
+        zero_records: 'Aucun élément trouvé'
+        empty_table: 'Aucune donnée disponible'
+        aria:
+            sort_ascending: ': activer pour trier la colonne par ordre croissant'
+            sort_descending: ': activer pour trier la colonne par ordre décroissant'
+```
+
+⚠️ `_MENU_`, `_START_`, `_END_`, `_TOTAL_` and `_MAX_` are DataTables' own placeholders,
+substituted long after the translator is done. They travel inside the translated string and must
+survive translation untouched.
 
 Quality assurance
 -----------------

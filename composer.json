@@ -13,6 +13,7 @@
     ],
     "require": {
         "php": "^8.5",
+        "jul6art/core-bundle": "^2.12",
         "symfony/config": "^7.4 || ^8.0",
         "symfony/dependency-injection": "^7.4 || ^8.0",
         "symfony/http-foundation": "^7.4 || ^8.0",
@@ -58,7 +59,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-master": "1.x-dev"
+            "dev-master": "2.x-dev"
         },
         "symfony": {
             "require": "7.4.*"
@@ -83,7 +84,7 @@
         }
     },
     "suggest": {
-        "twig/twig": "Les deux partials et les trois extensions Twig (`datatable_stimulus()`, `datatable_bulk_translations()`, `datatable_status_map()`). Sans Twig, seule la moitié PHP du bundle — les fournisseurs de configuration — est enregistrée.",
+        "twig/twig": "Les partials et l'extension Twig (`datatable_stimulus()`, `datatable_csrf_token()`). Sans Twig, seule la moitié PHP du bundle — les fournisseurs de configuration et les clés déclarées — est enregistrée.",
         "symfony/security-csrf": "Les partials `_csrf.html.twig` et `_preferences.html.twig` appellent `csrf_token()` : sans ce paquet, la fonction n'existe pas et le rendu échoue. Le contrôleur de préférences saute alors sa vérification de jeton, `SameSite=Lax` restant la défense de base.",
         "api-platform/core": "La table lit une collection API Platform ; les conventions de filtre (`?param[after]=`) que produisent les aides de configuration sont les siennes.",
         "jul6art/api-bundle": "Les filtres que les colonnes et les filtres déclarés ici supposent côté serveur : `OrSearchFilter` pour la recherche globale, `CaseInsensitiveOrderFilter` pour le tri."

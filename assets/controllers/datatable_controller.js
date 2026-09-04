@@ -2390,13 +2390,13 @@ export default class extends Controller {
                 // en français, donc lus en français par tout lecteur d'écran quelle que soit la
                 // langue de la page. Ils sont les seuls libellés de ce fichier qu'un utilisateur
                 // n'ENTEND que s'il ne peut pas voir la case — d'où l'oubli, et d'où sa gravité.
-                title: `<input type="checkbox" class="dt-bulk-select-all" aria-label="${this._escHtml(this.t('bulk.select_all'))}">`,
+                title: `<input type="checkbox" class="dt-bulk-select-all" aria-label="${this._escHtml(this.t('datatable.bulk.select_all'))}">`,
                 orderable: false,
                 searchable: false,
                 responsivePriority: 1,
                 className: 'dt-bulk-checkbox-col',
                 render: (data, type, row) =>
-                    `<input type="checkbox" class="dt-bulk-select-row" data-id="${row.id}" aria-label="${this._escHtml(this.t('bulk.select_row'))}">`,
+                    `<input type="checkbox" class="dt-bulk-select-row" data-id="${row.id}" aria-label="${this._escHtml(this.t('datatable.bulk.select_row'))}">`,
             });
         }
 
@@ -3356,38 +3356,42 @@ export default class extends Controller {
         return div.innerHTML;
     }
 
+    /**
+     * DataTables' own strings, read from the catalogue like everything else.
+     *
+     * ⚠️ This used to be a `{ fr: {…}, en: {…} }` table written in JavaScript, with eleven French
+     * sentences hard-coded in it and English left almost empty. A product serving five locales —
+     * `cegeta` does — fell back to a half-filled English for three of them, and nothing said so.
+     * A table of languages inside a bundle has no business knowing how many languages a product
+     * speaks: the server has the translator.
+     *
+     * ⚠️ `_MENU_`, `_START_`, `_END_`, `_TOTAL_` and `_MAX_` are DataTables' own placeholders,
+     * substituted by the library long after the translator is done. They travel inside the
+     * translated string and must survive translation untouched.
+     *
+     * The pagination arrows stay here: they are icons, not sentences.
+     */
     getLanguageConfig() {
-        const languages = {
-            fr: {
-                processing: 'Traitement...',
-                search: 'Rechercher :',
-                lengthMenu: 'Afficher _MENU_ éléments',
-                info: 'Affichage de _START_ à _END_ sur _TOTAL_ éléments',
-                infoEmpty: 'Affichage de 0 à 0 sur 0 élément',
-                infoFiltered: '(filtré de _MAX_ éléments au total)',
-                loadingRecords: 'Chargement...',
-                zeroRecords: 'Aucun élément trouvé',
-                emptyTable: 'Aucune donnée disponible',
-                paginate: {
-                    first: '<i class="fa-solid fa-angles-left"></i>',
-                    previous: '<i class="fa-solid fa-angle-left"></i>',
-                    next: '<i class="fa-solid fa-angle-right"></i>',
-                    last: '<i class="fa-solid fa-angles-right"></i>'
-                },
-                aria: {
-                    sortAscending: ': activer pour trier la colonne par ordre croissant',
-                    sortDescending: ': activer pour trier la colonne par ordre décroissant'
-                }
+        return {
+            processing: this.t('datatable.dt.processing'),
+            search: this.t('datatable.dt.search'),
+            lengthMenu: this.t('datatable.dt.length_menu'),
+            info: this.t('datatable.dt.info'),
+            infoEmpty: this.t('datatable.dt.info_empty'),
+            infoFiltered: this.t('datatable.dt.info_filtered'),
+            loadingRecords: this.t('datatable.dt.loading'),
+            zeroRecords: this.t('datatable.dt.zero_records'),
+            emptyTable: this.t('datatable.dt.empty_table'),
+            paginate: {
+                first: '<i class="fa-solid fa-angles-left"></i>',
+                previous: '<i class="fa-solid fa-angle-left"></i>',
+                next: '<i class="fa-solid fa-angle-right"></i>',
+                last: '<i class="fa-solid fa-angles-right"></i>'
             },
-            en: {
-                paginate: {
-                    first: '<i class="fa-solid fa-angles-left"></i>',
-                    previous: '<i class="fa-solid fa-angle-left"></i>',
-                    next: '<i class="fa-solid fa-angle-right"></i>',
-                    last: '<i class="fa-solid fa-angles-right"></i>'
-                }
+            aria: {
+                sortAscending: this.t('datatable.dt.aria.sort_ascending'),
+                sortDescending: this.t('datatable.dt.aria.sort_descending')
             }
         };
-        return languages[this.languageValue] || languages.en;
     }
 }

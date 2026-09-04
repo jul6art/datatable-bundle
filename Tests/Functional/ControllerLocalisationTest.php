@@ -49,30 +49,46 @@ final class ControllerLocalisationTest extends TestCase
         );
     }
 
-    /** Les deux libellés de sélection de masse viennent bien du traducteur. */
-    public function testTheBulkSelectionLabelsComeFromTheTranslator(): void
+    /**
+     * La configuration `language` de DataTables vient du catalogue, pas du fichier.
+     *
+     * ⚠️ Ce test remplace celui qui gardait la paire des `aria-label` en vérifiant chaque moitié
+     * DANS SON FICHIER — le JS lisait `bulk.select_all`, le partial envoyait
+     * `datatable.bulk.select_all`, et rien ne comparait les deux. Le test restait vert pendant que
+     * les cases de sélection de masse des trois back-offices annonçaient « bulk.select_all » à un
+     * lecteur d'écran. La paire n'existe plus : la clé lue EST la clé du catalogue, et
+     * {@see \Jul6Art\DatatableBundle\Tests\Unit\AssetTranslationKeysTest} la vérifie.
+     *
+     * ⚠️ Ce qu'il restait à garder, c'est `getLanguageConfig()` : onze phrases françaises et une
+     * table `{ fr, en }` écrites DANS le JS, qui laissaient les trois autres langues de cegeta sur
+     * un anglais à moitié rempli. Une table de langues dans un bundle n'a pas à savoir combien de
+     * langues parle un produit — le serveur a le traducteur.
+     *
+     * ⚠️ Et le test vise CETTE méthode, pas « toute phrase en dur du fichier ». Un garde générique
+     * a été essayé : il cherchait les littéraux accentués, et il est resté VERT quand on lui a
+     * resservi `'Traitement en cours…'`. Un test dont la mutation passe donne une confiance qu'il
+     * ne mérite pas — c'est exactement l'erreur que ce fichier existe pour ne plus refaire.
+     */
+    public function testTheDataTablesLanguageComesFromTheCatalogue(): void
     {
-        $js = self::readController();
+        $body = self::languageConfigBody();
 
-        foreach (['bulk.select_all', 'bulk.select_row'] as $key) {
-            self::assertStringContainsString(
-                \sprintf("this.t('%s')", $key),
-                $js,
-                \sprintf('La case de sélection de masse doit lire « %s » via le traducteur.', $key),
-            );
-        }
+        preg_match_all("/'([^']*)'/", $body, $literals);
 
-        // ⚠️ Et la clé doit être ENVOYÉE, sinon `t()` retombe sur la clé elle-même et l'utilisateur
-        // entend « bulk.select_all ». Les deux moitiés vont par paire.
-        $twig = (string) file_get_contents(\dirname(__DIR__, 2).'/Resources/views/datatable/_translations.html.twig');
+        $hardcoded = array_values(array_filter(
+            $literals[1],
+            static fn (string $literal): bool => !str_starts_with($literal, 'datatable.dt.')
+                && !str_starts_with($literal, '<i class='),
+        ));
 
-        foreach (['datatable.bulk.select_all', 'datatable.bulk.select_row'] as $key) {
-            self::assertStringContainsString(
-                \sprintf("'%s'|trans", $key),
-                $twig,
-                \sprintf('Le partial des traductions doit envoyer « %s » : sans elle, `t()` rend la clé brute.', $key),
-            );
-        }
+        self::assertSame([], $hardcoded, \sprintf(
+            "getLanguageConfig() ne doit contenir que des clés `datatable.dt.*` et des icônes :\n  - %s",
+            implode("\n  - ", $hardcoded),
+        ));
+
+        // ⚠️ Et les onze libellés doivent VRAIMENT y être : une méthode vidée passerait
+        // l'assertion ci-dessus sans qu'aucun texte ne soit plus rendu.
+        self::assertSame(11, substr_count($body, "this.t('datatable.dt."));
     }
 
     /**
@@ -83,6 +99,30 @@ final class ControllerLocalisationTest extends TestCase
         preg_match_all($pattern, $subject, $found);
 
         return $found[0];
+    }
+
+    /**
+     * Le corps de `getLanguageConfig()`, accolades équilibrées.
+     */
+    private static function languageConfigBody(): string
+    {
+        $js = self::readController();
+        $start = strpos($js, 'getLanguageConfig() {');
+
+        self::assertIsInt($start, 'getLanguageConfig() a disparu ou changé de nom.');
+
+        $depth = 0;
+        $length = \strlen($js);
+
+        for ($i = $start + \strlen('getLanguageConfig()'); $i < $length; ++$i) {
+            $depth += '{' === $js[$i] ? 1 : ('}' === $js[$i] ? -1 : 0);
+
+            if (0 === $depth && '}' === $js[$i]) {
+                return substr($js, $start, $i - $start + 1);
+            }
+        }
+
+        self::fail('Accolades déséquilibrées dans getLanguageConfig().');
     }
 
     private static function readController(): string

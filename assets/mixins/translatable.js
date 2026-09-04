@@ -1,49 +1,16 @@
 /**
- * Translatable mixin for Stimulus controllers.
+ * Re-export of the socle's mixin.
  *
- * Provides a `t(key)` method that resolves dot-separated keys
- * against a `translations` Object value passed from Twig.
+ * The implementation moved to `jul6art/core-bundle` when the catalogue became the single source
+ * of labels: a Stimulus controller shipped inside `vendor/` cannot import the project's
+ * `assets/translator.js`, so it reads through the socle's registry instead.
  *
- * Usage:
- *   import { useTranslatable } from '../../mixins/translatable';
+ * The file stays here because the controllers of this bundle — and seventeen of `superp` — import
+ * it by this path, and because `bootstrap.js` derives Stimulus identifiers from the tree.
+ * Rewriting those imports would buy nothing.
  *
- *   export default class extends Controller {
- *       static values = {
- *           ...translatableValues,
- *           // other values…
- *       };
- *
- *       connect() {
- *           useTranslatable(this);
- *       }
- *   }
- *
- * In Twig:
- *   data-my-controller-translations-value="{{ { 'key': 'val'|trans }|json_encode|e('html_attr') }}"
+ * ⚠️ Requires the `@jul6art/core-bundle` alias in the project's `webpack.config.js`, which
+ * `bundle-assets.js` builds from `FRONT_BUNDLES`. Without it the build fails at resolution —
+ * loudly, which is the right failure for a missing alias.
  */
-
-/**
- * Value descriptor to spread into `static values`.
- */
-export const translatableValues = {
-    translations: { type: Object, default: {} },
-};
-
-/**
- * Attaches a `t(key)` method to the controller instance.
- *
- * @param {Controller} controller - The Stimulus controller instance.
- */
-export function useTranslatable(controller) {
-    Object.assign(controller, {
-        t(key) {
-            const keys = key.split('.');
-            let value = this.translationsValue;
-            for (const k of keys) {
-                value = value?.[k];
-                if (value === undefined) return key;
-            }
-            return value || key;
-        },
-    });
-}
+export { useTranslatable, translatableValues } from '@jul6art/core-bundle/mixins/translatable';

@@ -8,9 +8,7 @@ use Jul6Art\DatatableBundle\Controller\DatatablePreferenceController;
 use Jul6Art\DatatableBundle\DataTable\AdminDataTableConfig;
 use Jul6Art\DatatableBundle\DatatableBundle;
 use Jul6Art\DatatableBundle\Preference\DatatablePreferenceStoreInterface;
-use Jul6Art\DatatableBundle\Twig\DataTableBulkExtension;
 use Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension;
-use Jul6Art\DatatableBundle\Twig\DataTableStatusMapExtension;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Loader\LoaderInterface;
@@ -125,9 +123,7 @@ final class TestKernel extends Kernel
                     'translator',
                     'twig',
                     AdminDataTableConfig::class,
-                    DataTableBulkExtension::class,
                     DataTableCsrfExtension::class,
-                    DataTableStatusMapExtension::class,
                     DatatablePreferenceController::class,
                     DatatablePreferenceStoreInterface::class,
                     'security.csrf.token_manager',
