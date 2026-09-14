@@ -50,6 +50,15 @@ final class DeclaredTranslationKeysTest extends TestCase
      * The generic confirmation text every modal falls back to. Absent, a delete confirmation shows
      * an empty body — `_modalText()` returns '' when neither the specific key nor this one hits.
      */
+    /**
+     * ⚠️ Same trick as the panels: `_buildExportControl()` hands `datatable.export.button` to
+     * `this.t()` through a variable, so the scanner cannot see it either.
+     */
+    public function testTheExportButtonLabelIsRequired(): void
+    {
+        self::assertContains('datatable.export.button', new DeclaredTranslationKeys()->keys());
+    }
+
     public function testTheGenericConfirmationTextIsRequired(): void
     {
         $required = new DeclaredTranslationKeys()->keys();

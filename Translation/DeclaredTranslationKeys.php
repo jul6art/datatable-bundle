@@ -57,6 +57,7 @@ final readonly class DeclaredTranslationKeys
         'datatable.confirm.title',
         'datatable.daterange.from',
         'datatable.daterange.to',
+        'datatable.export.button',
         'datatable.views.button',
         'datatable.views.hint',
     ];

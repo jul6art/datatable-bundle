@@ -1,0 +1,23 @@
+{#
+    L'export d'UN tableau — un bouton dans la barre d'outils qui télécharge exactement ce que
+    l'écran montre : les colonnes visibles, dans l'ordre, filtré comme l'utilisateur l'a filtré
+    (lot 2.8).
+
+    À inclure DANS la balise `<table>`, avec l'URL de la route d'export QUE LE PROJET écrit :
+
+        <table data-controller="{{ datatable_stimulus() }}"
+               {{ include('@Datatable/datatable/_export.html.twig', { url: path('admin_user_export') }) }}
+               …>
+
+    Sans cette inclusion, le bouton ne s'affiche pas : c'est une opt-in par tableau, comme les
+    préférences. Contrairement à `_preferences.html.twig`, il n'y a pas de route unique que ce
+    partial pourrait appeler lui-même — `DatatableViewExporter` (voir le README) est un SERVICE,
+    pas une route : l'entité, l'URL et le pare-feu sont ceux du projet, table par table.
+
+    ## Aucun jeton CSRF
+
+    La route se lit en GET — les filtres de la table voyagent déjà dans sa chaîne de requête, donc
+    l'export les y lit de la même façon — et un GET n'a rien à protéger d'une origine tierce : il
+    ne modifie aucun état, contrairement à `save` côté `dataflow-bundle`.
+#}
+data-{{ datatable_stimulus() }}-export-url-value="{{ url }}"

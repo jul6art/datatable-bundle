@@ -66,6 +66,10 @@ export default class extends Controller {
         // which is the default: the partial that fills these is included table by table.
         preferencesUrl: { type: String, default: '' },
         preferencesCsrf: { type: String, default: '' },
+        // Export of the current view (lot 2.8) — same opt-in-per-table shape as the preferences
+        // above, and independent of them: a table can be exportable without being
+        // preferences-enabled, or the other way around. No CSRF value: the route reads in GET.
+        exportUrl: { type: String, default: '' },
         countryNames: { type: Object, default: {} },
         customRoleLabels: { type: Object, default: {} },
         // Row field naming the record a confirm modal is about. Optional: when
@@ -175,6 +179,11 @@ export default class extends Controller {
      */
     get _hasPreferences() {
         return this.preferencesUrlValue !== '';
+    }
+
+    /** Same opt-in shape as `_hasPreferences`, and independent of it — see the value's comment. */
+    get _hasExport() {
+        return this.exportUrlValue !== '';
     }
 
     /**
@@ -591,36 +600,21 @@ export default class extends Controller {
     _buildPreferenceControls() {
         if (!this._hasPreferences) return;
 
-        const container = this.element.closest('.dt-container');
-        const topRow = container?.querySelector('.dt-layout-row');
-        if (!topRow || topRow.querySelector('.dt-prefs')) return;
-
-        const group = document.createElement('div');
-        group.className = 'dt-prefs-group';
-
         // A picker over a single column is a button that can do nothing.
-        if (this._columns.length > 1) {
-            group.appendChild(this._buildPanel('columns', 'fa-table-columns', 'datatable.columns.button'));
-        }
-
+        const showColumns = this._columns.length > 1;
         // A view stores FILTERS. Read on the declared filters, not the visible ones: hiding a
         // column must not make the saved views disappear with it.
-        if ((this.filtersValue || []).length > 0) {
-            group.appendChild(this._buildPanel('views', 'fa-bookmark', 'datatable.views.button'));
+        const showViews = (this.filtersValue || []).length > 0;
+        if (!showColumns && !showViews) return;
+
+        const group = this._toolbarGroup();
+        if (!group || group.querySelector('.dt-prefs--columns, .dt-prefs--views')) return;
+
+        if (showColumns) {
+            group.appendChild(this._buildPanel('columns', 'fa-table-columns', 'datatable.columns.button'));
         }
-
-        if (!group.firstChild) return;
-
-        // Inside the SEARCH's own layout cell, immediately before it — not appended to the row.
-        // The three controls are one cluster and have to stay aligned on the right together; the
-        // cell's `flex-wrap` (stylesheet) is what drops the buttons onto their own line on a narrow
-        // viewport instead of squeezing the search box. With the global search turned off there is
-        // no end cell, and the row itself is the right place.
-        const search = container?.querySelector('.dt-search');
-        if (search?.parentElement) {
-            search.parentElement.insertBefore(group, search);
-        } else {
-            topRow.appendChild(group);
+        if (showViews) {
+            group.appendChild(this._buildPanel('views', 'fa-bookmark', 'datatable.views.button'));
         }
 
         this._installPanelDismiss();
@@ -630,6 +624,102 @@ export default class extends Controller {
         // dragging two columns in a row feel like one gesture rather than two round trips.
         const reopen = this._consumeRememberedPanel();
         if (reopen) this._togglePanel(reopen);
+    }
+
+    /**
+     * Finds or creates the shared toolbar cluster — preferences buttons and the export button
+     * (lot 2.8) live in the SAME group, so they wrap onto one extra line together on a narrow
+     * viewport instead of two. Whichever of `_buildPreferenceControls()` / `_buildExportControl()`
+     * runs first creates it; the other reuses it, in either order.
+     */
+    _toolbarGroup() {
+        const container = this.element.closest('.dt-container');
+        const topRow = container?.querySelector('.dt-layout-row');
+        if (!topRow) return null;
+
+        const existing = topRow.querySelector('.dt-prefs-group');
+        if (existing) return existing;
+
+        const group = document.createElement('div');
+        group.className = 'dt-prefs-group';
+
+        // Inside the SEARCH's own layout cell, immediately before it — not appended to the row.
+        // The cell's `flex-wrap` (stylesheet) is what drops the buttons onto their own line on a
+        // narrow viewport instead of squeezing the search box. With the global search turned off
+        // there is no end cell, and the row itself is the right place.
+        const search = container?.querySelector('.dt-search');
+        if (search?.parentElement) {
+            search.parentElement.insertBefore(group, search);
+        } else {
+            topRow.appendChild(group);
+        }
+
+        return group;
+    }
+
+    /**
+     * The export button (lot 2.8) — a direct download, not a panel: there is nothing to configure,
+     * so unlike `columns`/`views` it carries no `.dt-prefs-panel`.
+     */
+    _buildExportControl() {
+        if (!this._hasExport) return;
+
+        const group = this._toolbarGroup();
+        if (!group || group.querySelector('.dt-prefs--export')) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'dt-prefs dt-prefs--export';
+
+        const link = document.createElement('a');
+        link.className = 'dt-prefs-btn';
+        link.rel = 'noopener';
+        link.innerHTML = `<i class="fa-solid fa-file-arrow-down"></i><span class="dt-prefs-btn-label">${this._escHtml(this.t('datatable.export.button'))}</span>`;
+
+        wrapper.appendChild(link);
+        group.appendChild(wrapper);
+
+        this._syncExportHref();
+    }
+
+    /**
+     * Kept current on every draw (see `onDraw()`), not only when the button is first built — a
+     * right-click "open in new tab" or a middle-click never fires this controller's `click`
+     * handler, so the `href` has to already be right rather than be patched from one.
+     */
+    _syncExportHref() {
+        const link = this.element.closest('.dt-container')?.querySelector('.dt-prefs--export a');
+        if (link) link.href = this._exportUrlWithCurrentFilters();
+    }
+
+    _exportUrlWithCurrentFilters() {
+        const query = this._filtersAsQueryString();
+
+        return query ? `${this.exportUrlValue}${this.exportUrlValue.includes('?') ? '&' : '?'}${query}` : this.exportUrlValue;
+    }
+
+    /**
+     * The exact shapes `DatatableReportSpecBuilder` reads back on the server: a bare value, a list
+     * under `param[]`, or an `{after, before}` range under `param[after]` / `param[before]` — API
+     * Platform's own `DateFilter` convention, the same one `transformRequestParams()` already sends
+     * to the live table's own AJAX call. Kept as a literal reimplementation rather than shared code:
+     * that one flattens into a plain object for `$.param()`-style serialisation, this one has to
+     * produce an actual query string, and the two shapes are one line apart, not worth a seam for.
+     */
+    _filtersAsQueryString() {
+        const params = new URLSearchParams();
+
+        for (const [param, value] of Object.entries(this._activeFilters || {})) {
+            if (Array.isArray(value)) {
+                value.forEach(v => params.append(`${param}[]`, v));
+            } else if (value && typeof value === 'object') {
+                if (value.after) params.append(`${param}[after]`, value.after);
+                if (value.before) params.append(`${param}[before]`, value.before);
+            } else if (value !== null && value !== undefined && value !== '') {
+                params.append(param, value);
+            }
+        }
+
+        return params.toString();
     }
 
     _buildPanel(kind, icon, labelKey) {
@@ -1083,6 +1173,7 @@ export default class extends Controller {
             initComplete: () => {
                 this._buildFilters();
                 this._buildPreferenceControls();
+                this._buildExportControl();
                 this._buildMobileFilterButton();
                 this._restoreState(saved);
                 this._updateMobileFilterBadge();
@@ -1168,6 +1259,7 @@ export default class extends Controller {
         // what "you have changed the view" should look like.
         this._activeViewId = this._matchingViewId();
         this._syncViewButtonLabel();
+        this._syncExportHref();
         this._resolvePageIris();
         this._renderCards();
         // Reset bulk selection whenever the query (search/filters/sort)

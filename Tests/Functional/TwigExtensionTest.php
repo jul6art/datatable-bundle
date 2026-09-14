@@ -112,6 +112,23 @@ final class TwigExtensionTest extends AbstractFunctionalTestCase
     }
 
     /**
+     * ⚠️ Unlike `_preferences.html.twig`, this partial owns no route of its own to call `path()`
+     * on — `DatatableViewExporter` is a service, not a bundle-owned endpoint (lot 2.8), so the URL
+     * comes in as a plain variable, exactly what the project's own route generates.
+     */
+    public function testTheExportPartialCarriesTheGivenUrl(): void
+    {
+        $container = $this->boot(bundleConfig: ['stimulus_identifier' => 'tbl']);
+
+        $twig = $container->get('twig');
+        self::assertInstanceOf(Environment::class, $twig);
+
+        $rendered = $twig->render('@Datatable/datatable/_export.html.twig', ['url' => '/admin/users/export']);
+
+        self::assertSame('data-tbl-export-url-value="/admin/users/export"', trim($rendered));
+    }
+
+    /**
      * The labels the two panels are built from. They live in the shared translations partial rather
      * than in the preferences one, because the Stimulus controller reads a single.
      * /**

@@ -494,6 +494,32 @@ wrong guess is a silently wrong export rather than a missing one.
 to the preferences endpoint, and the same reason `jul6art/dataflow-bundle` is a `suggest`, never a
 `require`, of this bundle: an application that never installs it renders no export button at all.
 
+### The toolbar button
+
+The service above is reachable; nothing yet asks for it. One more include, inside the `<table>` tag,
+next to the preferences one:
+
+```twig
+<table data-controller="{{ datatable_stimulus() }}"
+       {{ include('@Datatable/datatable/_export.html.twig', { url: path('admin_user_export') }) }}
+       …>
+```
+
+That renders a button in the same cluster as the column picker and the saved views — an icon and a
+label, `datatable.export.button`, which `DeclaredTranslationKeys` now requires. It downloads exactly
+what is on screen: the CURRENT filters (read from the same `_activeFilters` the live table already
+sends), refreshed on every draw so a saved view, a cleared filter or a Select2 change updates the
+button's target instead of only the next click's — a middle-click or "open in new tab" never fires a
+`click` handler this controller could otherwise hook.
+
+⚠️ **No CSRF value, unlike the preferences partial.** The route reads in GET — the filters travel in
+the query string, the same as any other read — and a GET has no state to protect from another
+origin. Nothing to configure beyond the URL.
+
+⚠️ **Independent of `_preferences.html.twig`.** A table can be exportable without saving column
+layouts, or the other way around; each partial keys off its own value, and either can be included
+without the other.
+
 Live refresh
 ------------
 
