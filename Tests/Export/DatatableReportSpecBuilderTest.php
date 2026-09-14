@@ -7,6 +7,7 @@ namespace Jul6Art\DatatableBundle\Tests\Export;
 use Jul6Art\DataflowBundle\Report\Spec\ReportColumn;
 use Jul6Art\DataflowBundle\Report\Spec\ReportFilter;
 use Jul6Art\DataflowBundle\Report\Spec\ReportSpec;
+use Jul6Art\DatatableBundle\DataTable\AbstractDataTableConfigProvider;
 use Jul6Art\DatatableBundle\Export\DatatableReportSpecBuilder;
 use Jul6Art\DatatableBundle\Preference\DatatablePreferenceInterpreter;
 use Jul6Art\DatatableBundle\Tests\Fixtures\ExportableWidgetDataTableConfigProvider;
@@ -177,6 +178,77 @@ final class DatatableReportSpecBuilderTest extends TestCase
         $spec = $this->builder()->build($this->provider(), null, new Request());
 
         self::assertSame([], $spec->filters);
+    }
+
+    /**
+     * ⚠️ An `iri` column shows a relation through a RESOLVED LABEL — the report engine has no such
+     * rendering step, so the bare relation key (`company`) is not a scalar it can select.
+     * `resolveField` is the leaf the datatable's own JS already reads to display it; the path built
+     * for the report has to be the same one, or `FieldCatalog` refuses it outright at run time.
+     * Found wiring the very first `iri` column into a real export (lot 2.8's own screen
+     * verification), not written from a hypothesis.
+     */
+    public function testAnIriColumnExportsTheResolvedFieldNotTheBareRelation(): void
+    {
+        $provider = new class($this->translator()) extends AbstractDataTableConfigProvider {
+            #[\Override]
+            public function rootEntity(): string
+            {
+                return \stdClass::class;
+            }
+
+            #[\Override]
+            public function getColumns(): array
+            {
+                return [
+                    $this->readOnlyColumn('company', 'widget.field.company', 'widget', render: 'iri', extra: ['resolveField' => 'legalName']),
+                ];
+            }
+
+            #[\Override]
+            public function getFilters(): array
+            {
+                return [];
+            }
+        };
+
+        $spec = $this->builder()->build($provider, null, new Request());
+
+        self::assertSame(['company.legalName'], self::paths($spec));
+    }
+
+    /**
+     * ⚠️ `resolveField` is optional — `datatable_controller.js` falls back to `name` when a column
+     * omits it (`col.resolveField || 'name'`), and the export has to fall back to the SAME field or
+     * the two would silently disagree on what an `iri` column even means.
+     */
+    public function testAnIriColumnWithNoResolveFieldDefaultsToName(): void
+    {
+        $provider = new class($this->translator()) extends AbstractDataTableConfigProvider {
+            #[\Override]
+            public function rootEntity(): string
+            {
+                return \stdClass::class;
+            }
+
+            #[\Override]
+            public function getColumns(): array
+            {
+                return [
+                    $this->readOnlyColumn('organization', 'widget.field.organization', 'widget', render: 'iri'),
+                ];
+            }
+
+            #[\Override]
+            public function getFilters(): array
+            {
+                return [];
+            }
+        };
+
+        $spec = $this->builder()->build($provider, null, new Request());
+
+        self::assertSame(['organization.name'], self::paths($spec));
     }
 
     private function builder(): DatatableReportSpecBuilder

@@ -89,11 +89,34 @@ final readonly class DatatableReportSpecBuilder
                 continue;
             }
 
-            $title = $declared[$key]['title'] ?? $key;
-            $columns[] = new ReportColumn($key, \is_string($title) ? $title : $key);
+            $column = $declared[$key];
+            $title = $column['title'] ?? $key;
+            $columns[] = new ReportColumn($this->reportPath($key, $column), \is_string($title) ? $title : $key);
         }
 
         return $columns;
+    }
+
+    /**
+     * ⚠️ An `iri` column shows a TO-ONE RELATION through a resolved label — `resolveField` (default
+     * `name`, the same fallback `datatable_controller.js` applies) names which of the related
+     * entity's own fields the table actually displays, and it is exactly the leaf the report engine
+     * needs too. Without this translation, a bare relation key such as `company` reaches
+     * `ReportRunner` as a path with no scalar to select, and `FieldCatalog` refuses it outright:
+     * "is not a reportable field" — found wiring the very first `iri` column into an export (lot
+     * 2.8's own screen verification, not a synthetic test).
+     *
+     * @param array<string, mixed> $column
+     */
+    private function reportPath(string $key, array $column): string
+    {
+        if ('iri' !== ($column['render'] ?? null)) {
+            return $key;
+        }
+
+        $resolveField = $column['resolveField'] ?? null;
+
+        return \sprintf('%s.%s', $key, \is_string($resolveField) && '' !== $resolveField ? $resolveField : 'name');
     }
 
     /**
