@@ -251,6 +251,43 @@ final class DatatableReportSpecBuilderTest extends TestCase
         self::assertSame(['organization.name'], self::paths($spec));
     }
 
+    /**
+     * ⚠️ Some columns have no equivalent in the report engine at all — a chip list built from a
+     * collection, a badge computed in the API resource. `rootEntity()` opts a table IN; a project
+     * still has to opt each such column OUT (`extra: ['reportable' => false]`), because only it
+     * knows which of its own renderings are not a real field. Dropped, not fatal: the same
+     * degradation a preference naming a removed column already gets.
+     */
+    public function testAColumnMarkedNotReportableIsDropped(): void
+    {
+        $provider = new class($this->translator()) extends AbstractDataTableConfigProvider {
+            #[\Override]
+            public function rootEntity(): string
+            {
+                return \stdClass::class;
+            }
+
+            #[\Override]
+            public function getColumns(): array
+            {
+                return [
+                    $this->column('id', 'datatable.col.id'),
+                    $this->readOnlyColumn('tagLabels', 'widget.field.tags', 'widget', render: 'chipList', extra: ['reportable' => false]),
+                ];
+            }
+
+            #[\Override]
+            public function getFilters(): array
+            {
+                return [];
+            }
+        };
+
+        $spec = $this->builder()->build($provider, null, new Request());
+
+        self::assertSame(['id'], self::paths($spec));
+    }
+
     private function builder(): DatatableReportSpecBuilder
     {
         return new DatatableReportSpecBuilder(new DatatablePreferenceInterpreter());

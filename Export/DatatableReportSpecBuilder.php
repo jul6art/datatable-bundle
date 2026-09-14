@@ -90,6 +90,16 @@ final readonly class DatatableReportSpecBuilder
             }
 
             $column = $declared[$key];
+
+            // ⚠️ A computed column has no equivalent in the report engine — a chip list built from
+            // a collection, a badge derived in the API resource, a value with no Doctrine path at
+            // all. `rootEntity()` opts a TABLE in; a project still has to opt each such column OUT,
+            // because only it knows which of its own renderings are not a real field. Dropped the
+            // same way an undeclared preference is: the export degrades, it does not fail whole.
+            if (false === ($column['reportable'] ?? true)) {
+                continue;
+            }
+
             $title = $column['title'] ?? $key;
             $columns[] = new ReportColumn($this->reportPath($key, $column), \is_string($title) ? $title : $key);
         }

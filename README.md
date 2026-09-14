@@ -489,6 +489,25 @@ Platform's own `?param[after]=` / `?param[before]=` convention into `gte` / `lte
 project's own filter type does not translate: this service would have to guess its shape, and a
 wrong guess is a silently wrong export rather than a missing one.
 
+⚠️ **An `iri` column exports the field it actually shows, not the bare relation.** A column reading
+`render: 'iri'` displays a related entity through `resolveField` (default `name`, the same fallback
+`datatable_controller.js` applies) — the export builds the path `<column>.<resolveField>` for it,
+because the bare relation key is not something the report engine can select.
+
+⚠️ **A column with no reportable equivalent has to say so.** A chip list built from a collection, a
+badge computed in the API resource — `rootEntity()` opts a TABLE in, but the report engine still
+needs a real Doctrine path for every exported column, and only the project knows which of its own
+renderings are not one:
+
+```php
+$this->readOnlyColumn('tags', 'crm.deal.fields.tags', 'crm', render: 'chipList', extra: ['reportable' => false]),
+```
+
+Left out, such a column reaches `ReportRunner` as a phantom field and the WHOLE export fails with
+"is not a reportable field" — found wiring the very first real table into this feature, not
+predicted in advance. Marked `reportable: false`, it is dropped the same way a preference naming a
+column removed since the last save already is: the export degrades, it does not fail whole.
+
 ⚠️ **`DatatableViewExporter` is removed** by `DatatableExportPass` when no
 `DatatablePreferenceStoreInterface` is bound — the same reasoning `PreferenceControllerPass` applies
 to the preferences endpoint, and the same reason `jul6art/dataflow-bundle` is a `suggest`, never a
