@@ -64,6 +64,23 @@ abstract class AbstractDataTableConfigProvider
     ) {
     }
 
+    /**
+     * The root entity this table reads from, for a consumer that exports it (lot 2.8,
+     * `jul6art/dataflow-bundle`'s `DatatableViewExporter`).
+     *
+     * ⚠️ `null` by default, and overriding it is the ONLY thing that makes a table exportable.
+     * Adding this as an ABSTRACT method would have broken every existing subclass the day it
+     * shipped; a concrete default that opts OUT is what makes exporting purely additive. A
+     * config provider knows its entity already — it is what a consumer's own API Platform resource
+     * reads from — so returning it costs one line for the tables that want the button.
+     *
+     * @return class-string|null
+     */
+    public function rootEntity(): ?string
+    {
+        return null;
+    }
+
     // ── Columns ────────────────────────────────────────────────
 
     /** @return list<array<string, mixed>> */

@@ -1,0 +1,17 @@
+# Chargé uniquement quand `jul6art/dataflow-bundle` est installé — `class_exists(ReportRunner::class)`
+# dans l'extension, règle 1 de DatatableExtension.php. `DatatableExportPass` affine ensuite : le
+# contrat de persistance des préférences peut n'avoir aucune implémentation dans le projet, et
+# c'est alors que la fonctionnalité n'existe simplement pas — même raisonnement que
+# `PreferenceControllerPass` pour l'écran de préférences.
+services:
+    _defaults:
+        autowire: true
+
+    # ⚠️ Redéclaré ici, à l'identique de `preferences.yaml` : un projet qui installe
+    # `jul6art/dataflow-bundle` sans configurer de firewall (Route + TokenStorage absents,
+    # `preferences.yaml` jamais chargé) doit quand même pouvoir exporter. Les deux déclarations
+    # sont strictement identiques, donc peu importe combien de fois ce service est chargé.
+    Jul6Art\DatatableBundle\Preference\DatatablePreferenceInterpreter: ~
+
+    Jul6Art\DatatableBundle\Export\DatatableReportSpecBuilder: ~
+    Jul6Art\DatatableBundle\Export\DatatableViewExporter: ~

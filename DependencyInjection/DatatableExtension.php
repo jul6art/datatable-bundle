@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Jul6Art\DatatableBundle\DependencyInjection;
 
+use Jul6Art\DataflowBundle\Report\ReportRunner;
 use Jul6Art\DatatableBundle\Controller\DatatablePreferenceController;
 use Jul6Art\DatatableBundle\DataTable\AdminDataTableConfig;
 use Jul6Art\DatatableBundle\Translation\DeclaredTranslationKeys;
@@ -69,6 +70,7 @@ class DatatableExtension extends Extension
         $container->setParameter('datatable.csrf.preferences', $preferencesToken);
 
         $this->registerPreferences($loader, $container, $preferencesToken);
+        $this->registerExport($loader);
 
         $tenant = \is_array($config['tenant'] ?? null) ? $config['tenant'] : [];
         $container->getDefinition(AdminDataTableConfig::class)
@@ -126,6 +128,25 @@ class DatatableExtension extends Extension
                 ? new Reference('security.csrf.token_manager', ContainerInterface::NULL_ON_INVALID_REFERENCE)
                 : null)
             ->setArgument('$csrfTokenId', $tokenId);
+    }
+
+    /**
+     * The export mechanism (lot 2.8) — reuses `jul6art/dataflow-bundle`'s report engine, so it
+     * exists only where that bundle does. `jul6art/dataflow-bundle` is a `suggest` here, not a
+     * `require`: this bundle's PHP half (the configuration providers) is useful to an application
+     * that never installs it and renders no export button at all.
+     *
+     * ⚠️ Whether a preferences STORE is bound — the other half of what
+     * {@see \Jul6Art\DatatableBundle\Export\DatatableViewExporter} needs — is a question only a
+     * compiler pass can answer; see {@see Compiler\DatatableExportPass}.
+     */
+    private function registerExport(YamlFileLoader $loader): void
+    {
+        if (!class_exists(ReportRunner::class)) {
+            return;
+        }
+
+        $loader->load('export.yaml');
     }
 
     /**

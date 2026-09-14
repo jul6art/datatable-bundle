@@ -437,6 +437,63 @@ The response is always the sanitised state, never an echo of the request — the
 a name that was cut or a duplicate that was suffixed shows immediately instead of coming back
 changed on the next page load.
 
+### Exporting a view
+
+With `jul6art/dataflow-bundle` installed, `DatatableViewExporter` turns a table's declared columns,
+a user's SAVED preferences, and the CURRENT request's filters into a real file — reusing that
+bundle's report engine rather than a second writing pipeline:
+
+```php
+#[Route('/admin/users/export', name: 'admin_user_export')]
+public function export(Request $request, DatatableViewExporter $exporter): StreamedResponse
+{
+    return $exporter->stream(
+        new UserDataTableConfigProvider($this->translator),
+        'admin_user',
+        $this->getUser(),
+        $request,
+        new CsvWriter(CsvDialect::excelFr()),
+        'users',
+    );
+}
+```
+
+⚠️ **There is no ONE export route the way there is one preferences route.** The entity, the URL and
+the firewall around it are yours — exactly as they already are for the API Platform collection the
+table itself reads. This service is the one piece that would otherwise be duplicated across every
+such controller.
+
+⚠️ **A table opts in with ONE method.** `AbstractDataTableConfigProvider::rootEntity()` returns
+`null` by default — every existing config provider, unmodified, stays not exportable. Override it
+with the entity the table already reads from:
+
+```php
+final class UserDataTableConfigProvider extends AbstractDataTableConfigProvider
+{
+    public function rootEntity(): ?string
+    {
+        return User::class;
+    }
+
+    // getColumns(), getFilters() — unchanged
+}
+```
+
+⚠️ **No saved preferences is not "export nothing".** It is the state of every user before their
+first visit to the column picker, and the export matches what the table itself shows by
+default — every declared column, in declaration order, minus the ones marked `hidden: true`.
+
+⚠️ **Filters translate from three declared shapes, not from the query string freely.** `static` and
+`api` narrow by identity (one value becomes `eq`, several become `in`); `daterange` reads API
+Platform's own `?param[after]=` / `?param[before]=` convention into `gte` / `lte` / `between`. A
+project's own filter type does not translate: this service would have to guess its shape, and a
+wrong guess is a silently wrong export rather than a missing one.
+
+⚠️ **`DatatableViewExporter` is removed** by `DatatableExportPass` when no
+`DatatablePreferenceStoreInterface` is bound — the same reasoning `PreferenceControllerPass` applies
+to the preferences endpoint, and the same reason `jul6art/dataflow-bundle` is a `suggest`, never a
+`require`, of this bundle: an application that never installs it renders no export button at all.
+
 Live refresh
 ------------
 
