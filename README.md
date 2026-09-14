@@ -493,9 +493,11 @@ wrong guess is a silently wrong export rather than a missing one.
 declared column.** `stage.name` is the right path to export `stage` as a column, but it is the
 wrong one to filter `stage` by identity against `/api/deal_stages/4` — a plain DQL `=` can never
 match a name field to a URL. A value shaped like an IRI (`/…/<id>`) is read as that id, and the
-filter's path is truncated to the bare relation (`stage.name` → `stage`) so `ReportRunner` compares
-the FOREIGN KEY column directly, no join needed. A value that is not shaped like an IRI — a plain
-`static` option (`true`, `electronics`) — keeps its own declared path and value exactly.
+filter's path is rewritten to `<relation>.id` (`stage.name` → `stage.id`) — not the BARE relation:
+`FieldCatalog` only ever lists scalar fields, so a path with no leaf at all is refused as "not a
+reportable field" even though `ReportRunner` would gladly compare it as a foreign key. A value that
+is not shaped like an IRI — a plain `static` option (`true`, `electronics`) — keeps its own
+declared path and value exactly.
 
 ⚠️ **An `iri` column exports the field it actually shows, not the bare relation.** A column reading
 `render: 'iri'` displays a related entity through `resolveField` (default `name`, the same fallback

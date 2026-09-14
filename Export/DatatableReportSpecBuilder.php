@@ -221,9 +221,12 @@ final readonly class DatatableReportSpecBuilder
      * wiring the first such filter into a real export — a stage filter matched ZERO rows instead of
      * throwing, the worse failure mode, because nothing about it looked like an error.
      *
-     * Truncating to the bare relation lets {@see \Jul6Art\DataflowBundle\Report\ReportRunner}'s own
-     * path resolver compare the FOREIGN KEY column directly, no join needed — which is what
-     * filtering "by identity" already meant.
+     * Rewritten to `<relation>.id`, not the bare relation: {@see \Jul6Art\DataflowBundle\Report\Catalog\FieldCatalog}
+     * only ever lists SCALAR fields (`ClassMetadata::getFieldNames()` never includes an association
+     * itself), so a bare relation path — even though `ReportRunner::resolve()` would gladly compare
+     * it as a foreign key — is refused before it gets that far: "is not a reportable field", found
+     * immediately after truncating to the bare relation looked like the fix. `id` is the one scalar
+     * every related entity in this catalogue already exposes.
      *
      * ⚠️ Truncated only when a value in the list actually IS an IRI. A `static` filter whose column
      * genuinely targets a leaf field with no relation behind it (a name typed by a user, `true` /
@@ -236,8 +239,9 @@ final readonly class DatatableReportSpecBuilder
         foreach ($values as $value) {
             if (self::isIri($value)) {
                 $dot = \strrpos($column, '.');
+                $relation = false === $dot ? $column : \substr($column, 0, $dot);
 
-                return false === $dot ? $column : \substr($column, 0, $dot);
+                return $relation.'.id';
             }
         }
 

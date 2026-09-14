@@ -183,7 +183,7 @@ final class DatatableReportSpecBuilderTest extends TestCase
     {
         $request = new Request(['category' => '/api/categories/7']);
 
-        $filter = self::filterFor($this->builder()->build($this->provider(), null, $request), 'category');
+        $filter = self::filterFor($this->builder()->build($this->provider(), null, $request), 'category.id');
 
         self::assertSame('eq', $filter->operator->value);
         self::assertSame('7', $filter->value);
@@ -192,11 +192,12 @@ final class DatatableReportSpecBuilderTest extends TestCase
     /**
      * ⚠️ The declared column of a relation filter is often a LEAF field (`stage.name`) chosen for
      * what the live table's own API resource reads — not a path `ReportRunner` can compare an id
-     * against. Truncated to the bare relation, the runner's own resolver falls back to the FOREIGN
-     * KEY column with no join at all: found wiring the very first such filter into a real export (a
-     * stage filter matched zero rows instead of throwing — silently wrong, not loud).
+     * against. Rewritten to `<relation>.id`, not the bare relation: `FieldCatalog` only ever lists
+     * SCALAR fields, so a bare relation path is refused as "not a reportable field" even though the
+     * runner's own resolver would gladly compare it as a foreign key — found immediately after
+     * truncating to the bare relation looked like the fix, on the very same real export.
      */
-    public function testAnEqualityFilterOnADottedColumnIsTruncatedToTheBareRelation(): void
+    public function testAnEqualityFilterOnADottedColumnIsRewrittenToTheRelationsId(): void
     {
         $provider = new class($this->translator()) extends AbstractDataTableConfigProvider {
             #[\Override]
@@ -219,7 +220,7 @@ final class DatatableReportSpecBuilderTest extends TestCase
         };
 
         $request = new Request(['stage' => '/api/deal_stages/4']);
-        $filter = self::filterFor($this->builder()->build($provider, null, $request), 'stage');
+        $filter = self::filterFor($this->builder()->build($provider, null, $request), 'stage.id');
 
         self::assertSame('4', $filter->value);
     }
