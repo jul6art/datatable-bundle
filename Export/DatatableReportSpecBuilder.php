@@ -201,11 +201,61 @@ final readonly class DatatableReportSpecBuilder
         if (\is_array($raw) && [] !== $raw && \array_is_list($raw)) {
             $values = \array_values(\array_filter($raw, \is_string(...)));
 
-            return [] === $values ? null : new ReportFilter($column, FilterOperator::In, $values);
+            return [] === $values
+                ? null
+                : new ReportFilter($this->identityPath($column, $values), FilterOperator::In, \array_map($this->identityValue(...), $values));
         }
 
-        return \is_string($raw) && '' !== $raw
-            ? new ReportFilter($column, FilterOperator::Equals, $raw)
-            : null;
+        if (!\is_string($raw) || '' === $raw) {
+            return null;
+        }
+
+        return new ReportFilter($this->identityPath($column, [$raw]), FilterOperator::Equals, $this->identityValue($raw));
+    }
+
+    /**
+     * ⚠️ `static` and `api` filters narrow a RELATION by identity, and every value this bundle's
+     * consumers declare for one is an API Platform IRI (`/api/deal_stages/4`) — the same shape the
+     * live table's own AJAX call already filters on. `ReportRunner` compares by plain DQL equality,
+     * which a leaf-suffixed path such as `stage.name` can never satisfy against an IRI: found
+     * wiring the first such filter into a real export — a stage filter matched ZERO rows instead of
+     * throwing, the worse failure mode, because nothing about it looked like an error.
+     *
+     * Truncating to the bare relation lets {@see \Jul6Art\DataflowBundle\Report\ReportRunner}'s own
+     * path resolver compare the FOREIGN KEY column directly, no join needed — which is what
+     * filtering "by identity" already meant.
+     *
+     * ⚠️ Truncated only when a value in the list actually IS an IRI. A `static` filter whose column
+     * genuinely targets a leaf field with no relation behind it (a name typed by a user, `true` /
+     * `false`) keeps its own declared path untouched.
+     *
+     * @param list<string> $values
+     */
+    private function identityPath(string $column, array $values): string
+    {
+        foreach ($values as $value) {
+            if (self::isIri($value)) {
+                $dot = \strrpos($column, '.');
+
+                return false === $dot ? $column : \substr($column, 0, $dot);
+            }
+        }
+
+        return $column;
+    }
+
+    /**
+     * The trailing numeric segment of an API Platform IRI (`/api/deal_stages/4` → `4`) — the
+     * foreign key value `ReportRunner` can actually compare — or the value UNCHANGED when it is not
+     * shaped like one, such as a plain `static` filter's own option value (`true`, `electronics`).
+     */
+    private function identityValue(string $value): string
+    {
+        return self::isIri($value) ? \substr($value, \strrpos($value, '/') + 1) : $value;
+    }
+
+    private static function isIri(string $value): bool
+    {
+        return 1 === \preg_match('#/\d+$#', $value);
     }
 }

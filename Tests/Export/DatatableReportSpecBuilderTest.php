@@ -173,6 +173,90 @@ final class DatatableReportSpecBuilderTest extends TestCase
         self::assertSame(['electronics', 'garden'], $filter->value);
     }
 
+    /**
+     * ⚠️ Every `api`/`static` filter this bundle's own consumers declare for a relation sends an
+     * API Platform IRI as its value — the shape the live table's own AJAX call already filters on.
+     * `ReportRunner` compares by plain DQL equality, which cannot match an IRI against anything;
+     * the identity it actually stores is the trailing id.
+     */
+    public function testAnEqualityFilterWithAnIriValueExtractsTheTrailingId(): void
+    {
+        $request = new Request(['category' => '/api/categories/7']);
+
+        $filter = self::filterFor($this->builder()->build($this->provider(), null, $request), 'category');
+
+        self::assertSame('eq', $filter->operator->value);
+        self::assertSame('7', $filter->value);
+    }
+
+    /**
+     * ⚠️ The declared column of a relation filter is often a LEAF field (`stage.name`) chosen for
+     * what the live table's own API resource reads — not a path `ReportRunner` can compare an id
+     * against. Truncated to the bare relation, the runner's own resolver falls back to the FOREIGN
+     * KEY column with no join at all: found wiring the very first such filter into a real export (a
+     * stage filter matched zero rows instead of throwing — silently wrong, not loud).
+     */
+    public function testAnEqualityFilterOnADottedColumnIsTruncatedToTheBareRelation(): void
+    {
+        $provider = new class($this->translator()) extends AbstractDataTableConfigProvider {
+            #[\Override]
+            public function rootEntity(): string
+            {
+                return \stdClass::class;
+            }
+
+            #[\Override]
+            public function getColumns(): array
+            {
+                return [$this->column('id', 'datatable.col.id')];
+            }
+
+            #[\Override]
+            public function getFilters(): array
+            {
+                return [$this->staticFilter('stage.name', 'stage', 'widget.filter.stage', [])];
+            }
+        };
+
+        $request = new Request(['stage' => '/api/deal_stages/4']);
+        $filter = self::filterFor($this->builder()->build($provider, null, $request), 'stage');
+
+        self::assertSame('4', $filter->value);
+    }
+
+    /**
+     * ⚠️ A column with NO relation behind it — a plain option value a user picked, not an
+     * identifier — must keep its own declared path and value exactly. Only a value shaped like an
+     * IRI is ever a signal that a relation is involved; nothing else may trigger the truncation.
+     */
+    public function testAnEqualityFilterWithAPlainValueIsNeitherTruncatedNorRewritten(): void
+    {
+        $provider = new class($this->translator()) extends AbstractDataTableConfigProvider {
+            #[\Override]
+            public function rootEntity(): string
+            {
+                return \stdClass::class;
+            }
+
+            #[\Override]
+            public function getColumns(): array
+            {
+                return [$this->column('id', 'datatable.col.id')];
+            }
+
+            #[\Override]
+            public function getFilters(): array
+            {
+                return [$this->staticFilter('company.name', 'company', 'widget.filter.company', [])];
+            }
+        };
+
+        $request = new Request(['company' => 'Acme']);
+        $filter = self::filterFor($this->builder()->build($provider, null, $request), 'company.name');
+
+        self::assertSame('Acme', $filter->value);
+    }
+
     public function testAFilterWithNoMatchingQueryParameterProducesNothing(): void
     {
         $spec = $this->builder()->build($this->provider(), null, new Request());

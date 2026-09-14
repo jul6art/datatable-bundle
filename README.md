@@ -489,6 +489,14 @@ Platform's own `?param[after]=` / `?param[before]=` convention into `gte` / `lte
 project's own filter type does not translate: this service would have to guess its shape, and a
 wrong guess is a silently wrong export rather than a missing one.
 
+⚠️ **A `static`/`api` filter on a RELATION sends an IRI, and the export follows it, not the
+declared column.** `stage.name` is the right path to export `stage` as a column, but it is the
+wrong one to filter `stage` by identity against `/api/deal_stages/4` — a plain DQL `=` can never
+match a name field to a URL. A value shaped like an IRI (`/…/<id>`) is read as that id, and the
+filter's path is truncated to the bare relation (`stage.name` → `stage`) so `ReportRunner` compares
+the FOREIGN KEY column directly, no join needed. A value that is not shaped like an IRI — a plain
+`static` option (`true`, `electronics`) — keeps its own declared path and value exactly.
+
 ⚠️ **An `iri` column exports the field it actually shows, not the bare relation.** A column reading
 `render: 'iri'` displays a related entity through `resolveField` (default `name`, the same fallback
 `datatable_controller.js` applies) — the export builds the path `<column>.<resolveField>` for it,
