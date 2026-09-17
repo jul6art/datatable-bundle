@@ -1345,6 +1345,21 @@ export default class extends Controller {
         }
         const columns = this.buildColumns();
 
+        // A stored page number belongs to the QUERY that produced it, and survives only if that
+        // query is the one about to run.
+        //
+        // The session remembers "page 5" together with the filters that had 120 rows. Coming back
+        // to the screen, a starred view wins over those filters — that is the precedence — so the
+        // table would open on page 5 of a query that has three rows: an empty screen, and a footer
+        // reading "101 to 3 of 3". The user sees no rows where there are some, and nothing says
+        // why. Reported 2026-09-17.
+        //
+        // Compared rather than flagged, so it also covers the cases nobody reports: a starred view
+        // whose filters were edited between two visits, a `sessionStorage` blob from an older
+        // version of the table, a second tab that moved the page under this one.
+        const pageBelongsToThisQuery = rebuild
+            || JSON.stringify(this._sortedFilters(this._activeFilters)) === JSON.stringify(this._sortedFilters(saved?.filters));
+
         const config = {
             processing: false,
             serverSide: true,
@@ -1370,7 +1385,7 @@ export default class extends Controller {
             columns: columns,
             pageLength: saved?.pageLength || this.pageLengthValue,
             order: this._resolveOrder(saved, rebuild ? sort : null),
-            displayStart: resetPage ? 0 : (saved?.start || 0),
+            displayStart: (resetPage || !pageBelongsToThisQuery) ? 0 : (saved?.start || 0),
             search: { search: saved?.search || '' },
             language: this.getLanguageConfig(),
             layout: {

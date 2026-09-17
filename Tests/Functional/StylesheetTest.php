@@ -197,8 +197,31 @@ final class StylesheetTest extends TestCase
 
         self::assertMatchesRegularExpression('/if \(!rebuild\) \{\s*this\._activeFilters = this\._openingFilters\(saved\);/', $js);
         self::assertStringContainsString('_resolveOrder(saved, preferred = null)', $js);
-        // Sauf l'application d'une vue, qui EST une nouvelle requête et revient page 1.
-        self::assertStringContainsString('displayStart: resetPage ? 0 : (saved?.start || 0)', $js);
+    }
+
+    /**
+     * Le numéro de page enregistré appartient à la REQUÊTE qui l'a produit.
+     *
+     * La session retient « page 5 » avec les filtres qui donnaient 120 lignes. En revenant sur
+     * l'écran, une vue étoilée gagne sur ces filtres — c'est la précédence — et la table s'ouvrait
+     * page 5 d'une requête qui en compte trois : écran vide, pied de table « de 101 à 3 sur 3 ».
+     * Signalé le 2026-09-17, reproduit au navigateur.
+     *
+     * Comparé plutôt que marqué : cela couvre aussi la vue étoilée dont les filtres ont changé entre
+     * deux visites, un `sessionStorage` écrit par une version antérieure, ou un second onglet qui a
+     * déplacé la page sous celui-ci.
+     */
+    public function testTheStoredPageIsDroppedWhenTheOpeningQueryIsNotTheOneThatProducedIt(): void
+    {
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertStringContainsString('displayStart: (resetPage || !pageBelongsToThisQuery) ? 0 : (saved?.start || 0)', $js);
+        self::assertMatchesRegularExpression(
+            '/const pageBelongsToThisQuery = rebuild\s*\|\| JSON\.stringify\(this\._sortedFilters\(this\._activeFilters\)\) === JSON\.stringify\(this\._sortedFilters\(saved\?\.filters\)\)/',
+            $js,
+        );
+        // Une reconstruction ne change pas la requête : elle garde sa page, sauf ordre contraire.
+        self::assertStringContainsString('const pageBelongsToThisQuery = rebuild', $js);
     }
 
     /**

@@ -418,6 +418,12 @@ Precedence, decided once and worth knowing:
 A view is a **seed, not a lock**: the next filter, sort or column change detaches it, and the panel
 stops showing it as active. It never carries a page size — that is a preference of its own.
 
+The **page number** the session remembers belongs to the query that produced it, and is kept only if
+that query is the one about to run (since 2.4.1). Otherwise the table opens on page 1. Without that,
+leaving a screen on page 5 of an unfiltered list and coming back to a starred view with three rows
+opened page 5 of a three-row query: no rows on screen, a footer reading "101 to 3 of 3", and nothing
+to say why.
+
 ### A view carries its columns (since 2.4.0)
 
 A saved view stores the columns it shows, **in the order it shows them** — visible keys only, under
