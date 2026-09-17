@@ -197,6 +197,59 @@ final class StylesheetTest extends TestCase
 
         self::assertMatchesRegularExpression('/if \(!rebuild\) \{\s*this\._activeFilters = this\._openingFilters\(saved\);/', $js);
         self::assertStringContainsString('_resolveOrder(saved, preferred = null)', $js);
+        // Sauf l'application d'une vue, qui EST une nouvelle requête et revient page 1.
+        self::assertStringContainsString('displayStart: resetPage ? 0 : (saved?.start || 0)', $js);
+    }
+
+    /**
+     * Une vue porte les colonnes qu'elle montre, dans l'ordre où elle les montre.
+     *
+     * Les clés VISIBLES seulement : l'ordre de ce qu'une vue masque n'a aucun effet observable, et
+     * la forme complète `{key, visible}` coûterait quatre fois plus pour rien — vingt vues sur une
+     * table large sortiraient des 16 Ko de `MAX_BYTES`, et `encode()` se mettrait à supprimer des
+     * vues pour tenir, sans rien dire.
+     */
+    public function testASavedViewCarriesTheColumnsItShows(): void
+    {
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertStringContainsString('columns: this._visibleColumns.map(col => col.data)', $js);
+        self::assertStringContainsString('_columnPrefsFromViewColumns(keys)', $js);
+        // Une vue étoilée apporte ses colonnes AVANT la construction, donc sans reconstruction au
+        // premier rendu — c'est le même moment que ses filtres et son tri.
+        self::assertMatchesRegularExpression('/starredPrefs[\s\S]{0,200}?this\._columnPrefs = starredPrefs/', $js);
+    }
+
+    /**
+     * Appliquer une vue ne reconstruit la table que si elle DÉPLACE une colonne.
+     *
+     * La visibilité a une API et se change sur place ; l'ordre n'en a pas. Comparer les clés, et non
+     * leur nombre, est ce qui fait sortir « mêmes colonnes, autre ordre » comme un réordonnancement.
+     */
+    public function testApplyingAViewOnlyRebuildsWhenTheOrderChanges(): void
+    {
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertStringContainsString('this._rebuildTable(sort, { resetPage: true })', $js);
+        self::assertStringContainsString('if (prefs) this._applyColumnVisibility();', $js);
+        self::assertMatchesRegularExpression('/const reorders = prefs !== null[\s\S]{0,260}?JSON\.stringify\(prefs\.map\(pref => pref\.key\)\)/', $js);
+    }
+
+    /**
+     * Toucher aux colonnes détache la vue, comme changer un filtre — décision du 2026-09-17.
+     *
+     * Rien n'est mis à `null` : l'appartenance se COMPARE, donc les colonnes entrent dans la
+     * comparaison au même titre que les filtres. Et `_toggleColumn()` doit la recalculer lui-même,
+     * parce que `visible()` ne change aucune requête : aucun dessin n'a lieu, et le bouton porterait
+     * encore le nom d'une vue qui n'est plus ce que la table montre.
+     */
+    public function testChangingAColumnDetachesTheActiveView(): void
+    {
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertStringContainsString('const shown = JSON.stringify(this._visibleColumns.map(col => col.data));', $js);
+        self::assertMatchesRegularExpression('/if \(!view\.columns\) return true;/', $js);
+        self::assertMatchesRegularExpression('/_toggleColumn\(key\)[\s\S]*?this\._activeViewId = this\._matchingViewId\(\);\s*this\._syncViewButtonLabel\(\);/', $js);
     }
 
     /**

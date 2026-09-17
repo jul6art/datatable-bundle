@@ -308,4 +308,97 @@ final class DatatablePreferenceInterpreterTest extends TestCase
 
         self::assertStringContainsString('"v":'.DatatablePreferenceInterpreter::SCHEMA_VERSION, $interpreter->encode($interpreter->empty()));
     }
+
+    /**
+     * A view carries the columns it shows, in the order it shows them.
+     *
+     * Only the VISIBLE keys, and no `visible` flag: the order of the columns a view hides has no
+     * observable effect, and the full `{key, visible}` shape would cost about four times as much
+     * for nothing — twenty views on a hundred-column table would then push past `MAX_BYTES` and
+     * `encode()` would drop saved views to fit, silently.
+     */
+    public function testAViewCarriesTheColumnsItShowsInOrder(): void
+    {
+        $preferences = new DatatablePreferenceInterpreter()->interpret([
+            'views' => [[
+                'name' => 'Atelier',
+                'filters' => ['isActive' => 'true'],
+                'columns' => ['name', 'sku', 'stock'],
+            ]],
+        ]);
+
+        self::assertSame(['name', 'sku', 'stock'], $preferences['views'][0]['columns']);
+    }
+
+    /**
+     * A view written before this existed has none, and must keep none: `null` is what tells the
+     * client "this view says nothing about columns, leave the layout alone". An empty list is read
+     * as `null` too — it would otherwise mean "show no column at all".
+     */
+    #[DataProvider('viewsWithoutColumns')]
+    public function testAViewWithoutColumnsSaysNothingAboutThem(mixed $raw): void
+    {
+        $preferences = new DatatablePreferenceInterpreter()->interpret([
+            'views' => [['name' => 'Atelier', 'columns' => $raw]],
+        ]);
+
+        self::assertNull($preferences['views'][0]['columns']);
+    }
+
+    /**
+     * @return iterable<string, array{mixed}>
+     */
+    public static function viewsWithoutColumns(): iterable
+    {
+        yield 'absent' => [null];
+        yield 'empty list' => [[]];
+        yield 'not a list at all' => ['name,sku'];
+        yield 'nothing usable in it' => [[null, '', ['nested']]];
+    }
+
+    /**
+     * The same bounds as the table-level columns, for the same reasons — and deduplicated, because
+     * the list IS the display order and a key appearing twice would be two positions for one
+     * column.
+     */
+    public function testAViewsColumnsAreBoundedAndDeduplicated(): void
+    {
+        $tooMany = array_map(static fn (int $i): string => 'col'.$i, range(1, DatatablePreferenceInterpreter::MAX_COLUMNS + 10));
+
+        $preferences = new DatatablePreferenceInterpreter()->interpret([
+            'views' => [
+                ['name' => 'Doublons', 'columns' => ['name', 'sku', 'name']],
+                ['name' => 'Trop', 'columns' => $tooMany],
+            ],
+        ]);
+
+        self::assertSame(['name', 'sku'], $preferences['views'][0]['columns']);
+        self::assertNotNull($preferences['views'][1]['columns']);
+        self::assertCount(DatatablePreferenceInterpreter::MAX_COLUMNS, $preferences['views'][1]['columns']);
+    }
+
+    /**
+     * The blob stays inside its ceiling now that views carry columns too — and what gives way is
+     * still a whole view from the end, never half of one.
+     */
+    public function testViewsCarryingColumnsStillFitTheCeiling(): void
+    {
+        $interpreter = new DatatablePreferenceInterpreter();
+        $columns = array_map(static fn (int $i): string => 'assignments.department.column'.$i, range(1, DatatablePreferenceInterpreter::MAX_COLUMNS));
+        $views = array_map(
+            static fn (int $i): array => ['name' => 'Vue '.$i, 'columns' => $columns, 'filters' => ['status' => 'active']],
+            range(1, DatatablePreferenceInterpreter::MAX_VIEWS),
+        );
+
+        $json = $interpreter->encode($interpreter->interpret(['views' => $views]));
+        $decoded = $interpreter->decode($json);
+
+        self::assertLessThanOrEqual(DatatablePreferenceInterpreter::MAX_BYTES, \strlen($json));
+        self::assertNotSame([], $decoded['views'], 'Tout tronquer reviendrait à refuser la sauvegarde.');
+
+        foreach ($decoded['views'] as $view) {
+            self::assertNotNull($view['columns']);
+            self::assertCount(DatatablePreferenceInterpreter::MAX_COLUMNS, $view['columns'], 'Une vue gardée est gardée entière.');
+        }
+    }
 }

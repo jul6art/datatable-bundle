@@ -399,7 +399,7 @@ tables whose relations expose `name` never noticed; a column resolving anything 
 | Panel | Actions |
 | --- | --- |
 | **Columns** | tick to show or hide, drag to reorder, one button back to the declared layout. The last visible column cannot be hidden |
-| **Views** | apply a saved set of filters, name the current one, star one as the default, delete one |
+| **Views** | apply a saved set of filters, sort *and* columns, name the current one, star one as the default, delete one |
 
 The two buttons sit in the global search's own layout cell, immediately before it, and drop onto
 their own line on a narrow viewport. The views button wears the name of the view currently applied —
@@ -407,16 +407,41 @@ the only place that is visible with the panel closed.
 
 Precedence, decided once and worth knowing:
 
-1. the **starred view** wins — filters *and* sort. "Default view at opening" is an explicit, durable
-   instruction; the session's sticky filters are an implicit convenience. The cost is stated rather
-   than hidden: with a view starred, an ad-hoc filter does not survive a navigation. That is what
-   starring one asks for, and un-starring it gives the sticky behaviour back;
+1. the **starred view** wins — filters, sort *and* columns. "Default view at opening" is an explicit,
+   durable instruction; the session's sticky filters are an implicit convenience. The cost is stated
+   rather than hidden: with a view starred, an ad-hoc filter does not survive a navigation. That is
+   what starring one asks for, and un-starring it gives the sticky behaviour back;
 2. **this session's state** (`sessionStorage`) — what keeps a filter across "open a row, come back"
    when nothing is starred;
 3. the **saved sort preference**, then the template's `default-order`.
 
-A view is a **seed, not a lock**: the next filter or sort change detaches it, and the panel stops
-showing it as active. It never carries a page size — that is a preference of its own.
+A view is a **seed, not a lock**: the next filter, sort or column change detaches it, and the panel
+stops showing it as active. It never carries a page size — that is a preference of its own.
+
+### A view carries its columns (since 2.4.0)
+
+A saved view stores the columns it shows, **in the order it shows them** — visible keys only, under
+`columns`. What it hides is not stored: the client rebuilds that half from the columns the table
+declares. The full `{key, visible}` shape would cost about four times the bytes for a layout nobody
+can see, and twenty views on a wide table would then push the blob past its 16 KB ceiling, where
+`encode()` drops saved views to fit — silently.
+
+- **A view written before 2.4.0 has no `columns`**, and that is a meaning of its own: "says nothing
+  about them, leave the layout alone". Nothing to migrate; the field is additive and an old blob
+  stays valid.
+- **Applying a view writes nothing.** Its columns go on screen, the table's own layout is untouched,
+  so a view is something one looks *through*: leaving it, or reloading, gives back the arrangement
+  the user made. Only a view that actually **moves** a column costs a rebuild — visibility has an
+  API, order does not.
+- **Changing a column while a view is up detaches it**, exactly as changing a filter does. What is
+  on screen stays on screen and becomes the table's layout from there on; the view keeps the columns
+  it was saved with. Nothing is flagged: which view is active is *compared*, and the columns are
+  part of the comparison, so a view stops being active the moment it stops describing the screen.
+- **A column declared since a view was saved is hidden by that view**, the opposite of what the
+  table-level layout does with it. A view says "these columns, in this order", which is an answer
+  about the whole table; a layout says "here is where I had got to", which a new column has to be
+  able to join.
+- The views panel marks the views that carry a column layout, so applying one is not a surprise.
 
 Reordering columns saves and then **rebuilds the table in place** (since 2.3.0): visibility has a
 DataTables API and changes without a redraw, order has none — ColReorder is a separate plugin, and

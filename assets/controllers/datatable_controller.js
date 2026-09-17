@@ -308,6 +308,51 @@ export default class extends Controller {
 
         this._views = Array.isArray(prefs.views) ? prefs.views.filter(view => view && view.id && view.name) : [];
         this._preferredSort = prefs.sort && prefs.sort.key ? prefs.sort : null;
+
+        // A starred view opens the table, so it brings its columns as well as its filters and its
+        // sort — and it brings them HERE, before the table is built, so they enter the column
+        // definitions instead of costing a rebuild on the first paint.
+        const starred = this._views.find(view => view.default);
+        const starredPrefs = starred?.columns ? this._columnPrefsFromViewColumns(starred.columns) : null;
+        if (starredPrefs) this._columnPrefs = starredPrefs;
+    }
+
+    /**
+     * Turns a view's list of visible column keys into a full set of column preferences.
+     *
+     * A view stores only what it SHOWS, in order; everything else the table declares is appended
+     * hidden. That includes a column declared since the view was saved — the opposite of what the
+     * table-level layout does, and deliberately: a view says "these columns, in this order", which
+     * is an answer about the whole table, while the layout says "here is where I had got to", which
+     * a new column has to be able to join.
+     *
+     * Returns `null` when nothing usable is left — a view naming only columns that no longer exist
+     * must leave the layout alone rather than empty the table.
+     *
+     * The columns it hides keep the order they have RIGHT NOW, rather than falling back to the
+     * declared one. They are invisible either way, but they hold their place in DataTables' index
+     * space, so rebuilding that order differently would count as a reorder — and a view that only
+     * hides a column would then cost a rebuild for a change nobody can see.
+     */
+    _columnPrefsFromViewColumns(keys) {
+        const declared = new Map(this.columnsValue.map(col => [col.data, col]));
+        const visible = (keys || []).filter(key => declared.has(key));
+
+        if (visible.length === 0) return null;
+
+        const shown = new Set(visible);
+        const current = (this._columnPrefs || []).length > 0
+            ? this._columnPrefs.map(pref => pref.key)
+            : this.columnsValue.map(col => col.data);
+
+        return [
+            ...visible.map(key => ({ key, visible: true })),
+            ...current.filter(key => !shown.has(key) && declared.has(key)).map(key => ({ key, visible: false })),
+            // A column declared since this user last saved anything is not in `current` yet.
+            ...this.columnsValue
+                .filter(col => !shown.has(col.data) && !current.includes(col.data))
+                .map(col => ({ key: col.data, visible: false })),
+        ];
     }
 
     /**
@@ -434,6 +479,17 @@ export default class extends Controller {
             this._renderCards();
         }
 
+        // Touching the columns detaches the view, exactly as changing a filter does — a view is a
+        // seed, not a lock. What is on screen STAYS on screen and becomes the table's layout from
+        // here on; the view keeps the columns it was saved with. Recomputed rather than assigned to
+        // `null`, because the new layout may well be another view's.
+        //
+        // Done here and not left to `onDraw`: `visible()` above changes no query, so no draw
+        // happens, and the views button would keep wearing the name of a view that is no longer
+        // what the table shows.
+        this._activeViewId = this._matchingViewId();
+        this._syncViewButtonLabel();
+
         this._persistPreferences();
         this._renderColumnPanel();
     }
@@ -504,7 +560,7 @@ export default class extends Controller {
      * top of the instance still driving the table, so every feed event would reload the table
      * twice. The element is the same node either way.
      */
-    _rebuildTable(sort) {
+    _rebuildTable(sort, { resetPage = false } = {}) {
         if (!this.dataTable) return;
 
         // The Select2 instances and the date-range listeners on `document` would outlive the cells
@@ -525,7 +581,7 @@ export default class extends Controller {
         this.element.querySelector('.dt-filter-row')?.remove();
 
         this.dataTable = null;
-        this.initializeDataTable({ rebuild: true, sort });
+        this.initializeDataTable({ rebuild: true, sort, resetPage });
 
         // Released from a macrotask, so after the MutationObserver microtasks Stimulus reacts on —
         // whether or not it actually fired anything. Without this, a DOM churn that nets out to
@@ -586,6 +642,9 @@ export default class extends Controller {
                 name: trimmed,
                 filters: { ...this._activeFilters },
                 sort: sort ? { key: sort.key, dir: sort.dir } : null,
+                // The columns it SHOWS, in the order it shows them. What a view hides is not stored:
+                // the client rebuilds that half from the columns the table declares.
+                columns: this._visibleColumns.map(col => col.data),
                 default: false,
             },
         ];
@@ -612,16 +671,44 @@ export default class extends Controller {
     }
 
     /**
-     * Applies a view: its filters and its sort, page back to 1 — and never a page size, which is a
-     * preference of its own and always wins.
+     * Applies a view: its filters, its sort, its columns, page back to 1 — and never a page size,
+     * which is a preference of its own and always wins.
      *
-     * A view is a SEED, not a lock: the next explicit sort or filter change detaches it, so the
-     * user is never fighting a state that comes back. That is `_activeViewId` being cleared in
-     * `onDraw` as soon as the query stops matching.
+     * A view is a SEED, not a lock: the next explicit sort, filter or column change detaches it, so
+     * the user is never fighting a state that comes back.
+     *
+     * Applying a view does NOT write the table's own layout. The columns it shows are put on screen
+     * and nothing is persisted, so a view is something one looks THROUGH: leaving it, or reloading
+     * the page, gives back the layout the user arranged. What does write the layout is the user
+     * changing a column while a view is up — see `_toggleColumn`.
      */
     _applyView(view) {
         this._activeFilters = { ...(view.filters || {}) };
         this._activeViewId = view.id;
+
+        const prefs = view.columns ? this._columnPrefsFromViewColumns(view.columns) : null;
+        // Order is the whole question: visibility has an API and changes in place, order does not,
+        // so only a view that actually moves a column costs a rebuild. Comparing the KEYS rather
+        // than counting them is what makes "same columns, other order" come out as a reorder.
+        const reorders = prefs !== null
+            && JSON.stringify(prefs.map(pref => pref.key)) !== JSON.stringify((this._columnPrefs || []).map(pref => pref.key));
+
+        const sort = view.sort?.key ? { key: view.sort.key, dir: view.sort.dir } : this._currentSort();
+
+        if (prefs) this._columnPrefs = prefs;
+
+        this._closePanels();
+
+        if (reorders) {
+            // The filters and the sort are already in memory, and `_rebuildTable` keeps what is on
+            // screen — it is told to go back to page 1 because applying a view is a new query, not
+            // a change of layout under the same one.
+            this._rebuildTable(sort, { resetPage: true });
+
+            return;
+        }
+
+        if (prefs) this._applyColumnVisibility();
         this._rebuildFilterRow();
 
         if (view.sort && view.sort.key) {
@@ -629,25 +716,70 @@ export default class extends Controller {
             if (order.length > 0) this.dataTable.order(order);
         }
 
-        this._closePanels();
         this.dataTable.page(0).draw(false);
     }
 
     /**
-     * The view whose filters are exactly what is on screen, or null.
+     * Pushes `_columnPrefs`' visibility onto the live table, for the columns whose state changed.
      *
-     * Compared rather than remembered: a filter changed by hand, a sort clicked, a Mercure reload
-     * all go through the same place, and comparing the query is the only thing that cannot forget
-     * one of them.
+     * The filter row is rebuilt once at the end rather than per column: DataTables removes the
+     * `<th>` of an invisible column, so a row built for every column would sit one cell out of line
+     * from the first hidden one on.
+     */
+    _applyColumnVisibility() {
+        if (!this.dataTable) return;
+
+        this._columns.forEach((col, index) => {
+            const column = this.dataTable.column(index + this._bulkOffset);
+            const wanted = this._isColumnVisible(col.data);
+            if (column.visible() !== wanted) column.visible(wanted, false);
+        });
+
+        this._rebuildFilterRow();
+        this.dataTable.columns.adjust();
+        // See `_toggleColumn`: a column shown without a draw keeps the IRI placeholder of the last
+        // one, because `_resolvePageIris()` skips hidden columns.
+        this._resolvePageIris(true);
+        this._renderCards();
+    }
+
+    /**
+     * The view that is exactly what is on screen, or null.
+     *
+     * Compared rather than remembered: a filter changed by hand, a sort clicked, a column ticked, a
+     * Mercure reload all go through the same place, and comparing the state is the only check that
+     * cannot forget one of them. It is also what detaches a view — there is no flag to clear.
+     *
+     * The columns count only for a view that carries them: one saved before they were stored says
+     * nothing about them, and must not stop matching because of a layout it never described.
      */
     _matchingViewId() {
-        // No filter applied means no view is active — otherwise a view someone saved with no
-        // filter at all would show as active on every unfiltered draw.
-        if (Object.keys(this._activeFilters || {}).length === 0) return null;
+        const hasFilters = Object.keys(this._activeFilters || {}).length > 0;
+        const filters = JSON.stringify(this._sortedFilters(this._activeFilters));
+        const shown = JSON.stringify(this._visibleColumns.map(col => col.data));
+        const declared = new Set(this.columnsValue.map(col => col.data));
 
-        const current = JSON.stringify(this._sortedFilters(this._activeFilters));
+        const matches = (view) => {
+            // A view that distinguishes nothing cannot be "active": with no filter and no columns
+            // of its own, it would show as active on every draw of an untouched table.
+            if (!hasFilters && !view.columns) return false;
+            if (JSON.stringify(this._sortedFilters(view.filters)) !== filters) return false;
+            if (!view.columns) return true;
 
-        return (this._views || []).find(view => JSON.stringify(this._sortedFilters(view.filters)) === current)?.id ?? null;
+            // Against the same yardstick `_columnPrefsFromViewColumns` uses, or a view naming a
+            // column the table has since dropped could never match again.
+            return JSON.stringify(view.columns.filter(key => declared.has(key))) === shown;
+        };
+
+        // Two views can describe the same screen — one that names its columns and an older one that
+        // says nothing about them, both on the same filters. When that happens, the one the user
+        // just picked is the honest answer; taking the first in the list would rename their choice
+        // under them. It is still a comparison, not a memory: the active view has to match too, and
+        // stops being active the moment it does not.
+        const active = (this._views || []).find(view => view.id === this._activeViewId);
+        if (active && matches(active)) return active.id;
+
+        return (this._views || []).find(matches)?.id ?? null;
     }
 
     _sortedFilters(filters) {
@@ -1022,6 +1154,7 @@ export default class extends Controller {
             : views.map(view => `
                 <div class="dt-views-row${view.id === this._activeViewId ? ' dt-views-row--active' : ''}" data-view="${this._escAttr(view.id)}">
                     <button type="button" class="dt-views-apply">${this._escHtml(view.name)}</button>
+                    ${view.columns ? `<i class="fa-solid fa-table-columns dt-views-mark" title="${this._escAttr(this.t('datatable.columns.button'))}" aria-hidden="true"></i>` : ''}
                     <button type="button" class="dt-views-icon dt-views-default${view.default ? ' dt-views-icon--on' : ''}"
                             aria-label="${this._escAttr(this.t('datatable.views.default'))}"
                             title="${this._escAttr(this.t('datatable.views.default'))}">
@@ -1187,13 +1320,14 @@ export default class extends Controller {
     }
 
     /**
-     * @param {{rebuild?: boolean, sort?: {key: string, dir: 'asc'|'desc'}|null}} options
+     * @param {{rebuild?: boolean, sort?: {key: string, dir: 'asc'|'desc'}|null, resetPage?: boolean}} options
      *        `rebuild` is set by {@see _rebuildTable}. A rebuild is NOT a page load: what is on
      *        screen must survive it, so the opening precedence is skipped. Replaying it would mean
      *        a starred view reclaims the filters and the sort on every column drag — the gesture
      *        would change what the table SHOWS, not just the order of its columns.
+     *        `resetPage` is for the one rebuild that IS a new query: applying a saved view.
      */
-    initializeDataTable({ rebuild = false, sort = null } = {}) {
+    initializeDataTable({ rebuild = false, sort = null, resetPage = false } = {}) {
         const panel = this.element.closest('.panel');
         this._blockId = this.block(panel || this.element);
 
@@ -1236,7 +1370,7 @@ export default class extends Controller {
             columns: columns,
             pageLength: saved?.pageLength || this.pageLengthValue,
             order: this._resolveOrder(saved, rebuild ? sort : null),
-            displayStart: saved?.start || 0,
+            displayStart: resetPage ? 0 : (saved?.start || 0),
             search: { search: saved?.search || '' },
             language: this.getLanguageConfig(),
             layout: {

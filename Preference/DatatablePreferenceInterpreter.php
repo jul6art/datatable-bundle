@@ -34,7 +34,7 @@ namespace Jul6Art\DatatableBundle\Preference;
  *
  * @phpstan-type DatatableSortPreference array{key: string, dir: 'asc'|'desc'}
  * @phpstan-type DatatableColumnPreference array{key: string, visible: bool}
- * @phpstan-type DatatableViewPreference array{id: string, name: string, filters: array<string, string|list<string>>, sort: DatatableSortPreference|null, default: bool}
+ * @phpstan-type DatatableViewPreference array{id: string, name: string, filters: array<string, string|list<string>>, sort: DatatableSortPreference|null, columns: list<string>|null, default: bool}
  * @phpstan-type DatatablePreferences array{v: int, columns: list<DatatableColumnPreference>, sort: DatatableSortPreference|null, views: list<DatatableViewPreference>}
  */
 final readonly class DatatablePreferenceInterpreter
@@ -233,11 +233,58 @@ final readonly class DatatablePreferenceInterpreter
                 'name' => $name,
                 'filters' => $this->filters($entry['filters'] ?? null),
                 'sort' => $this->sort($entry['sort'] ?? null),
+                'columns' => $this->viewColumns($entry['columns'] ?? null),
                 'default' => $isDefault,
             ];
         }
 
         return $views;
+    }
+
+    /**
+     * The columns a view shows, in the order it shows them — or `null` when it says nothing about
+     * them.
+     *
+     * **Visible keys only, no `visible` flag.** The order of the columns a view hides has no
+     * observable effect, so storing them would cost about four times the bytes for nothing: twenty
+     * views on a wide table would push the blob past {@see MAX_BYTES} and `encode()` would start
+     * dropping saved views to fit — silently, and for a layout nobody can see. The client rebuilds
+     * the hidden half from the columns the table declares, which it has in hand and this endpoint
+     * does not.
+     *
+     * **`null` and the empty list mean the same thing**, on purpose: a view written before this
+     * existed has no `columns` at all, and a list that sanitises down to nothing would otherwise
+     * mean "show no column", which is not a layout — it is a broken table. Both read as "leave the
+     * layout alone".
+     *
+     * @return list<string>|null
+     */
+    private function viewColumns(mixed $raw): ?array
+    {
+        if (!\is_array($raw)) {
+            return null;
+        }
+
+        $keys = [];
+        $seen = [];
+
+        foreach ($raw as $entry) {
+            if (\count($keys) >= self::MAX_COLUMNS) {
+                break;
+            }
+
+            // The list IS the display order, so a key appearing twice would be two positions for
+            // one column.
+            $key = self::key($entry);
+            if (null === $key || isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $keys[] = $key;
+        }
+
+        return [] === $keys ? null : $keys;
     }
 
     /**
