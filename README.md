@@ -7,7 +7,7 @@ Symfony datatable bundle
 
 <p align="left">
     <a href="https://opensource.org/licenses/MIT" target="_blank"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"></a>
-    <img src="https://img.shields.io/static/v1?label=stable&message=v1&color=0ea5e9" alt="Version">
+    <img src="https://img.shields.io/static/v1?label=stable&message=v2&color=0ea5e9" alt="Version">
 </p>
 
 A server-driven table over an API Platform collection: pagination, sorting, global search, column
@@ -418,11 +418,22 @@ Precedence, decided once and worth knowing:
 A view is a **seed, not a lock**: the next filter or sort change detaches it, and the panel stops
 showing it as active. It never carries a page size — that is a preference of its own.
 
-Reordering columns saves and then **reloads the page**: visibility has a DataTables API and changes
-in place, order has none (ColReorder is a separate plugin), and destroying the table to rebuild it
-does not work on a Stimulus-controlled element — `destroy()` re-inserts the `<table>`, the controller
-reconnects, and two instances end up owning one table. The search, filters and page all come back
-from `sessionStorage`.
+Reordering columns saves and then **rebuilds the table in place** (since 2.3.0): visibility has a
+DataTables API and changes without a redraw, order has none — ColReorder is a separate plugin, and
+adopting it would add a third numbering of the columns to a system built on column keys. So the
+table is destroyed and built again.
+
+That used to reload the whole page. `destroy()` re-inserts the `<table>`, so Stimulus queues a
+`disconnect()` / `connect()` pair on the element — and it was that `connect()` running the boot a
+second time, building a second table on the same node, that made a reload look like the only way
+out. Both callbacks land in a microtask, after the rebuild has returned, so a
+`data-datatable-rebuilding` flag set for the length of the tick neutralises them. The flag is on the
+**element**, not on the controller instance: Stimulus may hand the reconnection to a new instance,
+which would otherwise re-subscribe to Mercure on top of the one still driving the table.
+
+A rebuild is **not** a page load: the filters, the sort, the search and the page on screen are kept
+as they are. Replaying the opening precedence would let a starred view reclaim them on every column
+drag — the gesture would change what the table *shows*, not just the order of its columns.
 
 ### What the server does and does not validate
 

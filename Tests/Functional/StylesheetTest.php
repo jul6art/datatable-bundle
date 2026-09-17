@@ -137,12 +137,66 @@ final class StylesheetTest extends TestCase
 
         self::assertStringContainsString('await this._commitColumnOrder(sort);', $js);
         self::assertStringContainsString('_preferencePayload(sortOverride = null)', $js);
-        // Détruire la table pour la reconstruire ne marche pas sur un élément piloté par Stimulus :
-        // `destroy()` réinsère le `<table>`, le contrôleur se reconnecte et court-circuite sur
-        // `data-datatable-initialized` pendant que l'instance qui a commandé la reconstruction
-        // garde une table dont plus personne n'est propriétaire.
-        self::assertStringNotContainsString('_rebuildTable', $js);
-        self::assertStringContainsString('window.location.reload()', $js);
+        // L'instantané voyage jusqu'à la reconstruction : c'est lui qui rouvre la table, et non
+        // l'ordre vivant de DataTables, que le `splice` vient justement de faire mentir.
+        self::assertStringContainsString('this._rebuildTable(sort)', $js);
+    }
+
+    /**
+     * Un réordonnancement reconstruit la table SUR PLACE, il ne recharge plus la page.
+     *
+     * Le verdict du 2026-08-24 (« détruire et reconstruire ne marche pas sur un élément piloté par
+     * Stimulus ») décrivait juste le symptôme — deux tables, deux lignes de filtres — mais pas la
+     * cause : `destroy()` réinsère le `<table>`, Stimulus met en file un `disconnect()` puis un
+     * `connect()`, et c'est ce `connect()` relançant `_boot()` en parallèle qui construisait la
+     * seconde table. Un drapeau posé le temps du cycle suffit à le neutraliser.
+     *
+     * Le drapeau vit sur l'ÉLÉMENT, pas sur `this` : Stimulus est libre de confier la reconnexion à
+     * une NOUVELLE instance de contrôleur, auquel cas une propriété d'instance ne garde rien — et
+     * cette instance-là ressouscrirait Mercure par-dessus celle qui pilote encore la table, donc
+     * chaque événement du flux ferait recharger la table deux fois.
+     */
+    public function testARebuildIsDrivenRatherThanReloaded(): void
+    {
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        // Aucune ligne de CODE n'appelle le rechargement — le commentaire qui raconte pourquoi il a
+        // disparu, lui, a sa place : c'est la seule trace du verdict qu'il remplace.
+        self::assertDoesNotMatchRegularExpression('/^(?!\s*[*\/]).*window\.location\.reload\(\)/m', $js);
+        self::assertStringContainsString("this.element.dataset.datatableRebuilding = '1'", $js);
+        self::assertStringContainsString('get _isRebuilding()', $js);
+
+        // La garde de `connect()` est AVANT le boot, sinon elle ne garde rien.
+        self::assertMatchesRegularExpression('/connect\(\)\s*\{[\s\S]*?this\._isRebuilding[\s\S]*?this\._boot\(\)/', $js);
+        // Celle de `disconnect()` empêche le démontage d'une table qui vient d'être remontée.
+        self::assertMatchesRegularExpression('/disconnect\(\)\s*\{\s*(\/\/[^\n]*\n\s*)*if \(this\._isRebuilding\) return;/', $js);
+
+        // Relâché depuis un macrotask : les rappels du MutationObserver de Stimulus sont des
+        // microtasks, donc ils sont passés. Sans ce filet, un remaniement DOM qui se solde à zéro
+        // laisserait le drapeau posé et avalerait le prochain vrai `connect()`.
+        self::assertMatchesRegularExpression('/setTimeout\(\(\) => \{[\s\S]{0,160}?delete this\.element\.dataset\.datatableRebuilding/', $js);
+
+        // `destroy()` n'emporte PAS la ligne de filtres : elle appartient au `<thead>` qu'il
+        // restaure. La laisser fait sortir `_buildFilters()` par sa garde d'entrée, et la table
+        // reconstruite garde une ligne dont les Select2 viennent d'être détruits — une bande de
+        // cellules vides, aucun filtre, rien dans la console. Trouvé au navigateur le 2026-09-17.
+        self::assertMatchesRegularExpression('/destroy\(\);[\s\S]{0,700}?this\.element\.querySelector\(\'\.dt-filter-row\'\)\?\.remove\(\);[\s\S]{0,200}?initializeDataTable\(\{ rebuild: true/', $js);
+    }
+
+    /**
+     * Une reconstruction n'est pas une ouverture de page.
+     *
+     * `_openingFilters()` fait gagner la vue étoilée sur l'état de session — c'est la précédence
+     * tranchée le 2026-08-24, et elle est juste à l'ouverture. La rejouer sur une reconstruction
+     * ferait qu'un simple glisser de colonne reprendrait les filtres et le tri de la vue étoilée :
+     * le geste changerait ce que la table MONTRE, pas seulement l'ordre de ses colonnes.
+     */
+    public function testARebuildKeepsWhatIsOnScreen(): void
+    {
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertMatchesRegularExpression('/if \(!rebuild\) \{\s*this\._activeFilters = this\._openingFilters\(saved\);/', $js);
+        self::assertStringContainsString('_resolveOrder(saved, preferred = null)', $js);
     }
 
     /**

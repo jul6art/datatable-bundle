@@ -108,6 +108,16 @@ export default class extends Controller {
         this._columnPrefs ??= this._defaultColumnPrefs();
         this._views ??= [];
 
+        // A rebuild owns this element for the length of one tick: `_rebuildTable()` has already
+        // destroyed the old table and built the new one, synchronously, before this callback ran.
+        // Everything below would then be a second boot on a table that is already up — which is
+        // precisely what used to produce two tables and two filter rows, and why a reorder used to
+        // reload the whole page instead. See `_rebuildTable()` for why the flag is on the element.
+        if (this._isRebuilding) {
+            delete this.element.dataset.datatableRebuilding;
+            return;
+        }
+
         if (this.element.dataset.datatableInitialized) {
             this._subscribeMercure();
             return;
@@ -152,6 +162,12 @@ export default class extends Controller {
     }
 
     disconnect() {
+        // The `destroy()` of a rebuild re-inserts the `<table>`, so Stimulus queues a disconnect
+        // for an element that is still on screen and already carries its new table. Tearing down
+        // here would unsubscribe Mercure, drop the resize listener and destroy the Select2 of a
+        // table that nothing would then rebuild.
+        if (this._isRebuilding) return;
+
         this.unblockAll();
         this._destroyFilters();
         this._removePanelDismiss();
@@ -443,23 +459,15 @@ export default class extends Controller {
     }
 
     /**
-     * Saves a new column ORDER, then reloads the page.
+     * Saves a new column ORDER, then rebuilds the table on it.
      *
      * Visibility toggles in place — `column().visible()` is an API — but order has none: ColReorder
-     * is a separate DataTables plugin nobody here owns. The obvious alternative, destroying the
-     * table and building it again, does not work on a Stimulus-controlled element: `destroy()`
-     * re-inserts the original `<table>` node, Stimulus sees a removal followed by an insertion and
-     * disconnects then reconnects the controller. The reconnected instance short-circuits on
-     * `data-datatable-initialized` while the instance that ordered the rebuild still holds a table
-     * nobody owns — two tables, two filter rows, and a panel rendered from preferences the fresh
-     * instance had reloaded from the server before the save landed.
-     *
-     * So: await the save, remember which panel was open, reload. The search, the filters and the
-     * page all come back from `sessionStorage`, so the only thing the user pays is one navigation
-     * for a gesture they make rarely.
+     * is a separate DataTables plugin nobody here owns, and adopting it would add a third numbering
+     * of the columns (declared / displayed / DataTables index) to a system deliberately built on
+     * column KEYS. So the table is destroyed and built again, which `_rebuildTable()` makes safe.
      */
     async _commitColumnOrder(sort) {
-        // A debounced save from an earlier tick would race the reload for no gain: the state it
+        // A debounced save from an earlier tick would race the rebuild for no gain: the state it
         // carries is the state about to be sent.
         if (this._prefsSaveTimer) {
             clearTimeout(this._prefsSaveTimer);
@@ -468,15 +476,73 @@ export default class extends Controller {
 
         this._rememberOpenPanel();
 
-        // Reload only on a save that landed. Reloading after a failure would show the OLD order
+        // Rebuild only on a save that landed. Rebuilding after a failure would show the OLD order
         // next to a toast saying the save failed — two contradictory signals for one action.
-        if (await this._savePreferences(sort)) window.location.reload();
+        if (await this._savePreferences(sort)) this._rebuildTable(sort);
+    }
+
+    /** True while `_rebuildTable()` owns this element — read by `connect()` and `disconnect()`. */
+    get _isRebuilding() {
+        return this.element.dataset.datatableRebuilding === '1';
     }
 
     /**
-     * Which panel to reopen after the reload, keyed on the preferences URL so two tables on one
-     * page never reopen each other's. Consumed once and cleared: a later reload for another reason
-     * must not pop a panel open.
+     * Destroys the table and builds it again on the current column order, in place.
+     *
+     * This used to be a `window.location.reload()`. The verdict it rested on (2026-08-24, "destroy
+     * and rebuild does not work on a Stimulus-controlled element") described the symptom exactly —
+     * two tables, two filter rows — but named the wrong cause. `destroy()` re-inserts the original
+     * `<table>`, Stimulus sees a removal followed by an insertion and queues a `disconnect()` then
+     * a `connect()` on this element; it was that `connect()` running `_boot()` again, fetching the
+     * preferences a second time and building a SECOND table, that made the page reload look like
+     * the only way out. Both callbacks land in a microtask — after this method has returned — so a
+     * flag set for the length of the tick is enough to neutralise them.
+     *
+     * **The flag lives on the ELEMENT, not on `this`.** Stimulus may hand the reconnection to a new
+     * controller instance, and an instance property would guard nothing in that case: the new
+     * instance would short-circuit on `data-datatable-initialized` and re-subscribe to Mercure on
+     * top of the instance still driving the table, so every feed event would reload the table
+     * twice. The element is the same node either way.
+     */
+    _rebuildTable(sort) {
+        if (!this.dataTable) return;
+
+        // The Select2 instances and the date-range listeners on `document` would outlive the cells
+        // they belong to, exactly as in `_rebuildFilterRow()`.
+        this._destroyFilters();
+        this._closePanels();
+
+        this.element.dataset.datatableRebuilding = '1';
+
+        this.dataTable.destroy();
+
+        // `destroy()` does NOT take the filter row with it, although that row was appended to a
+        // `<thead>` DataTables generated itself: what it restores is the header as it found it, and
+        // our row is part of that by then. Leaving it is not cosmetic — `_buildFilters()` returns
+        // early when a `.dt-filter-row` already exists, so the rebuilt table would keep the old row
+        // whose Select2 instances were just torn down: a strip of empty cells, no filter, and
+        // nothing in the console to say so. Found in the browser, not by any of the tests.
+        this.element.querySelector('.dt-filter-row')?.remove();
+
+        this.dataTable = null;
+        this.initializeDataTable({ rebuild: true, sort });
+
+        // Released from a macrotask, so after the MutationObserver microtasks Stimulus reacts on —
+        // whether or not it actually fired anything. Without this, a DOM churn that nets out to
+        // nothing would leave the flag set and the next REAL connect would be swallowed.
+        setTimeout(() => {
+            delete this.element.dataset.datatableRebuilding;
+        }, 0);
+    }
+
+    /**
+     * Which panel to reopen once the table is up again, keyed on the preferences URL so two tables
+     * on one page never reopen each other's. Consumed once and cleared: a later boot for another
+     * reason must not pop a panel open.
+     *
+     * Kept in `sessionStorage` rather than on the instance although a rebuild no longer navigates:
+     * Stimulus may hand the reconnection to a new controller instance, and the memory of an
+     * instance that is being replaced is exactly what cannot be relied on here.
      */
     get _panelMemoryKey() {
         return `dt_panel_${this.preferencesUrlValue}`;
@@ -620,8 +686,8 @@ export default class extends Controller {
         this._installPanelDismiss();
         this._syncViewButtonLabel();
 
-        // A reorder reloads the page, and the panel went with it. Reopening it is what makes
-        // dragging two columns in a row feel like one gesture rather than two round trips.
+        // A reorder rebuilds the table, and `destroy()` takes the toolbar — panels included — with
+        // it. Reopening is what makes dragging two columns in a row feel like one gesture.
         const reopen = this._consumeRememberedPanel();
         if (reopen) this._togglePanel(reopen);
     }
@@ -1067,6 +1133,10 @@ export default class extends Controller {
     /**
      * Sort precedence, highest first:
      *
+     * 0. **`preferred`**, when a REBUILD passes one — the ordering that was on screen a tick ago.
+     *    It is not part of the opening precedence at all: nothing below it describes an ordering
+     *    the user is currently looking at, and re-deciding one during a column drag would sort the
+     *    table on a column nobody clicked;
      * 1. **the starred view's sort** — it opens the table, so it brings its ordering. Above the
      *    session for the same reason its filters are: see `_openingFilters()`. The two have to
      *    agree, or the table opens on one view's filters sorted by another's column;
@@ -1079,9 +1149,10 @@ export default class extends Controller {
      * longer has — so a stale preference falls through to the next candidate instead of leaving
      * the table unsorted.
      */
-    _resolveOrder(saved) {
+    _resolveOrder(saved, preferred = null) {
         const view = (this._views || []).find(candidate => candidate.default);
         const candidates = [
+            preferred?.key ? [[preferred.key, preferred.dir]] : null,
             view?.sort?.key ? [[view.sort.key, view.sort.dir]] : null,
             saved?.orderKeys,
             this._preferredSort?.key ? [[this._preferredSort.key, this._preferredSort.dir]] : null,
@@ -1115,7 +1186,14 @@ export default class extends Controller {
         this._updateMobileFilterBadge();
     }
 
-    initializeDataTable() {
+    /**
+     * @param {{rebuild?: boolean, sort?: {key: string, dir: 'asc'|'desc'}|null}} options
+     *        `rebuild` is set by {@see _rebuildTable}. A rebuild is NOT a page load: what is on
+     *        screen must survive it, so the opening precedence is skipped. Replaying it would mean
+     *        a starred view reclaims the filters and the sort on every column drag — the gesture
+     *        would change what the table SHOWS, not just the order of its columns.
+     */
+    initializeDataTable({ rebuild = false, sort = null } = {}) {
         const panel = this.element.closest('.panel');
         this._blockId = this.block(panel || this.element);
 
@@ -1128,7 +1206,9 @@ export default class extends Controller {
         // call. Setting it here means ONE request carrying the right query, instead of an
         // unfiltered draw immediately corrected by a filtered one. It is also what lets a default
         // view apply on the first paint rather than as a visible jump.
-        this._activeFilters = this._openingFilters(saved);
+        if (!rebuild) {
+            this._activeFilters = this._openingFilters(saved);
+        }
         const columns = this.buildColumns();
 
         const config = {
@@ -1155,7 +1235,7 @@ export default class extends Controller {
             },
             columns: columns,
             pageLength: saved?.pageLength || this.pageLengthValue,
-            order: this._resolveOrder(saved),
+            order: this._resolveOrder(saved, rebuild ? sort : null),
             displayStart: saved?.start || 0,
             search: { search: saved?.search || '' },
             language: this.getLanguageConfig(),
