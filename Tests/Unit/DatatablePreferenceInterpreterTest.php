@@ -178,6 +178,24 @@ final class DatatablePreferenceInterpreterTest extends TestCase
         ], $preferences['views'][0]['filters']);
     }
 
+    /**
+     * The list has to survive STORAGE, not just interpretation: a view is read back on every draw,
+     * and a value flattened on the way in or out would leave the table asking for `status=draft,sent`
+     * — one value, which the database compares as one. The API line of this ecosystem shipped that
+     * defect; this is the guard for the same contract here.
+     */
+    public function testAMultiValueFilterSurvivesTheStorageRoundTrip(): void
+    {
+        $interpreter = new DatatablePreferenceInterpreter();
+        $stored = $interpreter->encode($interpreter->interpret([
+            'views' => [['name' => 'Brouillons et envoyes', 'filters' => ['status' => ['draft', 'sent']]]],
+        ]));
+
+        $reread = $interpreter->decode($stored);
+
+        self::assertSame(['status' => ['draft', 'sent']], $reread['views'][0]['filters']);
+    }
+
     public function testAnEmptyFilterValueIsDroppedRatherThanStored(): void
     {
         $preferences = new DatatablePreferenceInterpreter()->interpret([
