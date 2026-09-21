@@ -78,11 +78,7 @@
             "@rector-check",
             "@phpstan",
             "@test"
-        ],
-        "auto-scripts": {
-            "cache:clear": "symfony-cmd",
-            "assets:install %PUBLIC_DIR%": "symfony-cmd"
-        }
+        ]
     },
     "suggest": {
         "twig/twig": "Les partials et l'extension Twig (`datatable_stimulus()`, `datatable_csrf_token()`). Sans Twig, seule la moitié PHP du bundle — les fournisseurs de configuration et les clés déclarées — est enregistrée.",
