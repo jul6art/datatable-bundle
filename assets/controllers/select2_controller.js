@@ -66,12 +66,32 @@ export default class extends Controller {
         }, 50);
     }
 
+    /**
+     * The value the clear button restores.
+     *
+     * Select2's clear button restores `placeholder.id`: with the button on and no placeholder, it
+     * throws "Cannot read properties of undefined (reading 'id')" and clears nothing. An explicit
+     * placeholder wins; otherwise the empty <option> a Symfony `placeholder` (or a hand-written
+     * "All") renders is exactly the value to restore. No empty option: nothing to restore.
+     */
+    _resolvePlaceholder() {
+        if (this.placeholderValue) {
+            return this.placeholderValue;
+        }
+
+        const empty = Array.from(this.element.options ?? []).find((option) => '' === option.value);
+
+        return empty ? { id: '', text: empty.text } : null;
+    }
+
     _init() {
         const $el = window.jQuery(this.element);
+        const placeholder = this._resolvePlaceholder();
 
         const config = {
-            placeholder: this.placeholderValue || null,
-            allowClear: this.allowClearValue,
+            placeholder,
+            // Nothing to restore means nothing to clear.
+            allowClear: this.allowClearValue && null !== placeholder,
             width: '100%',
             theme: 'default',
             language: document.documentElement.lang || 'fr',
