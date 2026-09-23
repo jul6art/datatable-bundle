@@ -690,6 +690,43 @@ datatable:
 substituted long after the translator is done. They travel inside the translated string and must
 survive translation untouched.
 
+### Select2's messages (since 2.5.4)
+
+The `select2` controller used to pass `language: document.documentElement.lang` — a locale code,
+which Select2 only translates when the project has loaded `select2/dist/js/i18n/<locale>.js`.
+Without it, "Please enter 1 or more characters" and "No results found" showed in English on a
+French page. The controller now hands Select2 the messages themselves, from the catalogue, in
+every locale the project declares:
+
+```yaml
+# translations/javascript.<locale>.yaml
+datatable:
+    select2:
+        error_loading: 'Les résultats ne peuvent pas être chargés.'
+        input_too_long: 'Supprimez %count% caractère(s)'
+        input_too_short: 'Saisissez au moins %count% caractère(s)'
+        loading_more: 'Chargement de résultats supplémentaires…'
+        maximum_selected: 'Vous ne pouvez sélectionner que %count% élément(s)'
+        no_results: 'Aucun résultat trouvé'
+        searching: 'Recherche en cours…'
+        remove_all_items: 'Supprimer tous les éléments'
+        remove_item: "Supprimer l'élément"
+        search: 'Rechercher'
+```
+
+A Select2 the project initialises itself takes the same messages:
+
+```js
+import { select2Language } from '@jul6art/datatable-bundle/select2-language';
+
+$(select).select2({ language: select2Language(), /* … */ });
+```
+
+A project that `require()`d Select2's locale files for the controller's sake can drop them.
+
+⚠️ A key the catalogue does not translate is left out of the object, so Select2 keeps its own
+message for it rather than printing the raw key: upgrading before adding the keys changes nothing.
+
 Quality assurance
 -----------------
 

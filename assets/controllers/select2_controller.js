@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { liveFormParams } from '../select2-config';
+import { select2Language } from '../select2-language';
 
 /**
  * Select2 Controller — Enhanced select inputs.
@@ -94,7 +95,10 @@ export default class extends Controller {
             allowClear: this.allowClearValue && null !== placeholder,
             width: '100%',
             theme: 'default',
-            language: document.documentElement.lang || 'fr',
+            // The messages themselves, from the catalogue — a locale code only translates when
+            // the project registered Select2's locale file, and two products out of three did
+            // not (see `select2-language.js`).
+            language: select2Language(),
             // P5 (rapport 2026-05-17-2) — tags: true autorise les
             // valeurs libres (pour les combos AJAX + free-text mix
             // comme le champ `carrier` du BL).
