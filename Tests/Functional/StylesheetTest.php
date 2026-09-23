@@ -18,6 +18,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class StylesheetTest extends TestCase
 {
+    private const array SHIPPED_SHEETS = ['datatable.css', 'datatable-custom.css', 'select2.css', 'tooltip.css', 'blockui.css'];
+
     /**
      * Select2 remplace le `<select>` par sa propre structure et peint son propre focus. Sans
      * `outline-none` sur `--focus`, on obtient le double trait bleu + blanc de Chrome par-dessus
@@ -471,24 +473,51 @@ final class StylesheetTest extends TestCase
      * narrowed desktop window sees — and for a 1280-px one, which keeps the desktop density: a
      * regex on the rule's text would stay green while the query no longer matched a phone.
      *
-     * @return iterable<string, array{0: string, 1: string}>
+     * The phone selector must also OUTRANK every rule of the shipped sheets that sizes the same
+     * field (the third column finds them): the first version of this rule lost the search field to
+     * `datatable-custom.css`, imported later with the same specificity, and stayed 14 px while
+     * this test only read the phone block.
+     *
+     * @return iterable<string, array{0: string, 1: string, 2: string}>
      */
     public static function phoneFields(): iterable
     {
-        yield 'global search' => ['datatable.css', '.dt-container .dt-search input'];
-        yield 'page length' => ['datatable.css', '.dt-container .dt-length select'];
-        yield 'date range bound' => ['datatable.css', '.dt-filter-daterange input.dt-filter-date'];
-        yield 'mobile sheet date' => ['datatable.css', '.dt-mobile-filter-sheet input.dt-mobile-filter-input'];
-        yield 'mobile sheet select' => ['datatable.css', '.dt-mobile-filter-sheet select.dt-mobile-filter-select'];
-        yield 'bulk action select' => ['datatable.css', 'select.dt-bulk-bar__select'];
-        yield 'saved view name' => ['datatable.css', 'input.dt-views-input'];
-        yield 'Select2 dropdown search' => ['select2.css', '.select2-container .select2-search--dropdown .select2-search__field'];
-        yield 'Select2 inline search' => ['select2.css', '.select2-container--default .select2-selection--multiple .select2-search--inline .select2-search__field'];
+        yield 'global search' => ['datatable.css', '.dt-container .dt-search input[type="search"]', '/\.dt-search input/'];
+        yield 'page length' => ['datatable.css', '.dt-container .dt-length select', '/\.dt-length select/'];
+        yield 'date range bound' => ['datatable.css', '.dt-filter-daterange input.dt-filter-date', '/\.dt-filter-date\b(?!range)/'];
+        yield 'mobile sheet date' => ['datatable.css', '.dt-mobile-filter-sheet input.dt-mobile-filter-input', '/\.dt-mobile-filter-input/'];
+        yield 'mobile sheet select' => ['datatable.css', '.dt-mobile-filter-sheet select.dt-mobile-filter-select', '/\.dt-mobile-filter-select/'];
+        yield 'bulk action select' => ['datatable.css', 'select.dt-bulk-bar__select', '/\.dt-bulk-bar__select/'];
+        yield 'saved view name' => ['datatable.css', 'input.dt-views-input', '/\.dt-views-input/'];
+        yield 'Select2 dropdown search' => ['select2.css', '.select2-container .select2-search--dropdown .select2-search__field', '/select2-search--dropdown/'];
+        yield 'Select2 inline search' => ['select2.css', '.select2-container--default .select2-selection--multiple .select2-search--inline .select2-search__field', '/select2-search--inline/'];
     }
 
     #[DataProvider('phoneFields')]
-    public function testEveryFieldIsSixteenPixelsOnAPhone(string $sheet, string $selector): void
+    public function testEveryFieldIsSixteenPixelsOnAPhone(string $sheet, string $selector, string $competitors): void
     {
+        $sized = 0;
+
+        foreach (self::SHIPPED_SHEETS as $shipped) {
+            foreach (self::sizingRules(self::read($shipped)) as $competitor) {
+                if (1 !== preg_match($competitors, $competitor)) {
+                    continue;
+                }
+
+                ++$sized;
+                self::assertGreaterThan(self::specificity($competitor), self::specificity($selector), \sprintf(
+                    '`%s` does not outrank `%s` (%s), which sizes the same field: the phone size loses.',
+                    $selector,
+                    $competitor,
+                    $shipped,
+                ));
+            }
+        }
+
+        if ('Select2 inline search' !== $this->dataName()) {
+            self::assertGreaterThan(0, $sized, 'No rule sizes this field any more: the pattern finds nothing to compare.');
+        }
+
         self::assertGreaterThanOrEqual(16, self::fontSizeAt(self::read($sheet), 360, $selector), \sprintf(
             '`%s` (%s) is under 16 px on a 360-px screen: Safari zooms on every focus.',
             $selector,
@@ -572,5 +601,41 @@ final class StylesheetTest extends TestCase
         }
 
         return $matching;
+    }
+
+    /**
+     * Every selector, outside `@media` blocks, whose rule sets a font size (a `font-size`, or a
+     * `text-xs`…`text-xl` / `text-[…px]` utility in an `@apply`).
+     *
+     * @return list<string>
+     */
+    private static function sizingRules(string $css): array
+    {
+        $css = (string) preg_replace('#/\*.*?\*/#s', '', $css);
+        $css = (string) preg_replace('/@media [^{]+\{\s*(?:[^{}]+\{[^{}]*\}\s*)+\}/', '', $css);
+        preg_match_all('/([^{}]+)\{([^{}]*)\}/', $css, $rules, \PREG_SET_ORDER);
+        $selectors = [];
+
+        foreach ($rules as [, $list, $declarations]) {
+            if (1 !== preg_match('/font-size\s*:|@apply[^;]*\btext-(?:xs|sm|base|lg|xl|\[\d+px\])(?![\w-])/', $declarations)) {
+                continue;
+            }
+
+            foreach (explode(',', $list) as $selector) {
+                $selectors[] = (string) preg_replace('/\s+/', ' ', trim($selector));
+            }
+        }
+
+        return $selectors;
+    }
+
+    /** Specificity as one comparable integer: ids, then classes / attributes / pseudo-classes, then elements. */
+    private static function specificity(string $selector): int
+    {
+        $ids = preg_match_all('/#[\w-]+/', $selector);
+        $classes = preg_match_all('/\.[\w-]+|\[[^\]]*\]|(?<!:):(?!is\(|where\(|not\()[\w-]+/', $selector);
+        $elements = preg_match_all('/(?:^|[\s>+~])([a-z][\w-]*)/i', $selector);
+
+        return $ids * 10000 + $classes * 100 + $elements;
     }
 }

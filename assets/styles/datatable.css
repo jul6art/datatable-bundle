@@ -728,9 +728,10 @@ table.dataTable > tbody > tr.child span.dtr-data {
  *   sees the fix. The desktop density — the reason for the small sizes — is kept.
  * - Plain CSS, no `@apply`, no utility written in the controller's markup: a utility class only
  *   exists in the consumer's build if its scanner happens to read this bundle.
- * - Each selector is one class or one element above the rule it overrides (`.dt-container`,
- *   `input.`), so it wins whatever order the consumer imports the sheets in — the mobile sheet's
- *   `.dt-mobile-filter-sheet .dt-mobile-filter-input` lives in `select2.css`, imported later.
+ * - Each selector is more specific than every rule of the shipped sheets that sizes the same field
+ *   (`.dt-container`, `input.`), so it wins whatever order the consumer imports them in — the
+ *   search field is also sized by `datatable-custom.css` (`.dt-search input[type="search"]`), the
+ *   mobile sheet by `select2.css`, both imported after this file.
  * - `16px` and not `text-base`: an account font scale can resize a rem; Safari's threshold is
  *   absolute.
  *
@@ -739,6 +740,7 @@ table.dataTable > tbody > tr.child span.dtr-data {
  */
 @media (pointer: coarse), (max-width: 1023px) {
     .dt-container .dt-search input,
+    .dt-container .dt-search input[type="search"],
     .dt-container .dt-length select,
     .dt-filter-daterange input.dt-filter-date,
     .dt-mobile-filter-sheet input.dt-mobile-filter-input,
