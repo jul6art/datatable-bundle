@@ -217,7 +217,9 @@ final class StylesheetTest extends TestCase
 
         self::assertStringContainsString('displayStart: (resetPage || !pageBelongsToThisQuery) ? 0 : (saved?.start || 0)', $js);
         self::assertMatchesRegularExpression(
-            '/const pageBelongsToThisQuery = rebuild\s*\|\| JSON\.stringify\(this\._sortedFilters\(this\._activeFilters\)\) === JSON\.stringify\(this\._sortedFilters\(saved\?\.filters\)\)/',
+            // The opening search term is part of "this query" too (since 2.5): a page handed
+            // `initial-search-value` must not open on the page number another term produced.
+            '/const pageBelongsToThisQuery = rebuild\s*\|\| \(openingSearch === \(saved\?\.search \|\| \'\'\)\s*&& JSON\.stringify\(this\._sortedFilters\(this\._activeFilters\)\) === JSON\.stringify\(this\._sortedFilters\(saved\?\.filters\)\)\)/',
             $js,
         );
         // Une reconstruction ne change pas la requête : elle garde sa page, sauf ordre contraire.

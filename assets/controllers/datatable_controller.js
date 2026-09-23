@@ -76,6 +76,9 @@ export default class extends Controller {
         // empty, `_rowSubject()` probes the usual label fields. Set it only when
         // the right label is not among them (rapport 2026-08-05 § P2).
         subjectField: { type: String, default: '' },
+        // A search term to OPEN on, handed by the page (`?search=` of a "see all N results" link).
+        // It wins over the remembered term on the first build only — see `initializeDataTable`.
+        initialSearch: { type: String, default: '' },
     };
 
     connect() {
@@ -1345,6 +1348,14 @@ export default class extends Controller {
         }
         const columns = this.buildColumns();
 
+        // The page's term wins over the remembered one: a "see all 47 results" link is what the
+        // user just clicked, and opening on the previous visit's term — or on none — would show a
+        // count that matches nothing on screen (cegeta ADR-0037). First build only: a column drag
+        // must not bring the link's term back over what was typed since.
+        const openingSearch = !rebuild && '' !== this.initialSearchValue
+            ? this.initialSearchValue
+            : (saved?.search || '');
+
         // A stored page number belongs to the QUERY that produced it, and survives only if that
         // query is the one about to run.
         //
@@ -1358,7 +1369,8 @@ export default class extends Controller {
         // whose filters were edited between two visits, a `sessionStorage` blob from an older
         // version of the table, a second tab that moved the page under this one.
         const pageBelongsToThisQuery = rebuild
-            || JSON.stringify(this._sortedFilters(this._activeFilters)) === JSON.stringify(this._sortedFilters(saved?.filters));
+            || (openingSearch === (saved?.search || '')
+                && JSON.stringify(this._sortedFilters(this._activeFilters)) === JSON.stringify(this._sortedFilters(saved?.filters)));
 
         const config = {
             processing: false,
@@ -1386,7 +1398,7 @@ export default class extends Controller {
             pageLength: saved?.pageLength || this.pageLengthValue,
             order: this._resolveOrder(saved, rebuild ? sort : null),
             displayStart: (resetPage || !pageBelongsToThisQuery) ? 0 : (saved?.start || 0),
-            search: { search: saved?.search || '' },
+            search: { search: openingSearch },
             language: this.getLanguageConfig(),
             layout: {
                 topStart: 'pageLength',
@@ -1404,7 +1416,7 @@ export default class extends Controller {
                 this._buildPreferenceControls();
                 this._buildExportControl();
                 this._buildMobileFilterButton();
-                this._restoreState(saved);
+                this._restoreState(saved, openingSearch);
                 this._updateMobileFilterBadge();
             },
             drawCallback: () => this.onDraw(),
@@ -1795,13 +1807,13 @@ export default class extends Controller {
      * live in widgets rather than in the query: the search box's visible text, and the selected
      * option of each Select2, which has to be created before it can be selected.
      */
-    _restoreState(saved) {
+    _restoreState(saved, openingSearch = saved?.search || '') {
         if (!this.dataTable) return;
 
-        if (saved?.search) {
+        if (openingSearch) {
             const searchInput = this.element.closest('.dt-container')?.querySelector('.dt-search input');
             if (searchInput) {
-                searchInput.value = saved.search;
+                searchInput.value = openingSearch;
             }
         }
 

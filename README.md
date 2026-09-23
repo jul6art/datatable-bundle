@@ -181,6 +181,17 @@ renders raw keys.
 `searchable-fields-value` is the list the global search hits through `OrSearchFilter`. It is not
 derived from the columns on purpose: a table often searches fields it does not display.
 
+A page can hand the table a term to **open on** — a header search's "see all 47 results" link lands
+on the list filtered by the same term:
+
+```twig
+data-{{ datatable_stimulus() }}-initial-search-value="{{ app.request.query.get('search', '') }}"
+```
+
+It wins over the term remembered in `sessionStorage`, on the first build only (a column drag does not
+bring it back over what was typed since), and the search box shows it. Empty — the default — changes
+nothing.
+
 ### 3. Wire the front end
 
 ```js
