@@ -1945,7 +1945,7 @@ export default class extends Controller {
 
                 const emptyOpt = document.createElement('option');
                 emptyOpt.value = '';
-                emptyOpt.textContent = '— ' + (config.placeholder || 'Tous') + ' —';
+                emptyOpt.textContent = '— ' + (config.placeholder || this._orEnglish(this.t('datatable.filter.all'), 'All')) + ' —';
                 select.appendChild(emptyOpt);
 
                 if (config.type === 'static' && config.options) {
@@ -2078,7 +2078,7 @@ export default class extends Controller {
 
         body.querySelectorAll('select[data-filter-type="api"]').forEach(select => {
             $(select).select2({
-                placeholder: '— ' + (this.filtersValue.find(f => f.param === select.dataset.filterParam)?.placeholder || 'Rechercher') + ' —',
+                placeholder: '— ' + (this.filtersValue.find(f => f.param === select.dataset.filterParam)?.placeholder || this._orEnglish(this.t('datatable.filter.search'), 'Search')) + ' —',
                 allowClear: true,
                 width: '100%',
                 minimumInputLength: 1,
@@ -2750,7 +2750,7 @@ export default class extends Controller {
         if (this.actionsValue && this.actionsValue.length > 0) {
             cols.push({
                 data: null,
-                title: 'Actions',
+                title: this._escHtml(this._orEnglish(this.t('datatable.actions'), 'Actions')),
                 orderable: false,
                 searchable: false,
                 responsivePriority: 1,
@@ -3369,7 +3369,7 @@ export default class extends Controller {
             .map(action => ({
                 ...action,
                 icon: this.getFaIcon(action.icon),
-                label: action.label || `Action ${action.type}`,
+                label: action.label || this._orEnglish(this.t('datatable.action.default', { '%type%': action.type }), `Action ${action.type}`),
                 url: this.generateUrl(action.route, row),
                 // Kept for per-row interpolation of the confirm-modal texts
                 // ({firstName}, {lastName}, … placeholders in modalTitle/…).
@@ -3602,7 +3602,7 @@ export default class extends Controller {
             this._cardContainer.innerHTML = `
                 <div class="p-8 text-center text-sm text-slate-400">
                     <i class="fa-solid fa-inbox text-3xl mb-2 text-slate-300"></i>
-                    <p>${this.getLanguageConfig().emptyTable || 'No data'}</p>
+                    <p>${this._orEnglish(this.t('datatable.dt.empty_table'), 'No data available in table')}</p>
                 </div>`;
         } else {
             this._cardContainer.innerHTML = rows.map(row => this._renderCard(row, columns)).join('');
@@ -3694,6 +3694,25 @@ export default class extends Controller {
             scrollWrapper.classList.remove('dt-desktop-only');
             this._cardContainer.classList.add('hidden');
         }
+    }
+
+    /**
+     * A label the table draws without the page naming it, and its English when the catalogue has
+     * none — the same fallback as `select2Language()`.
+     *
+     * ⚠️ The translator returns the KEY for a missing entry, so a project that has not added the key
+     * yet would print `datatable.filter.search` in the field. The English stands in for it — never
+     * the French the table used to hard-code ("Rechercher", "Tous") on pages of every language.
+     *
+     * The key stays a literal `this.t('…')` at the call site, where `JsTranslationScanner` reads it
+     * and each project's `AbstractJsTranslationTestCase` requires it in every locale.
+     *
+     * @param {string} translated what `this.t()` returned
+     * @param {string} english
+     * @returns {string}
+     */
+    _orEnglish(translated, english) {
+        return translated.startsWith('datatable.') ? english : translated;
     }
 
     _escHtml(val) {

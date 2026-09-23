@@ -731,6 +731,32 @@ A project that `require()`d Select2's locale files for the controller's sake can
 ⚠️ A key the catalogue does not translate is left out of the object, so Select2 keeps its own
 message for it rather than printing the raw key: upgrading before adding the keys changes nothing.
 
+### Labels the table draws on its own (since 2.5.6)
+
+Five labels used to be written into the controller, two of them in French on pages of every
+language: the API filter of the mobile sheet said "— Rechercher —", its static filters "— Tous —".
+They are catalogue keys now:
+
+```yaml
+# translations/javascript.<locale>.yaml
+datatable:
+    actions: 'Actions'                # heading of the actions column
+    action:
+        default: 'Action %type%'      # an action declared without a label
+    filter:
+        all: 'Tous'                   # empty option of a static filter, mobile sheet
+        search: 'Rechercher'          # placeholder of an API filter, mobile sheet
+    dt:
+        empty_table: 'Aucune donnée disponible'   # the card list of a phone, too
+```
+
+A filter's own `placeholder` still wins over `filter.all` and `filter.search`.
+
+⚠️ A key the catalogue does not translate falls back to English ("Actions", "Action edit", "All",
+"Search", "No data available in table") — the same rule as the Select2 messages: never the raw key,
+never French. `HardCodedTextSourceTest` fails on any string the bundle's JavaScript draws as
+written.
+
 Quality assurance
 -----------------
 
