@@ -56,6 +56,21 @@ final class Select2LanguageSourceTest extends TestCase
         self::assertStringNotContainsString('documentElement.lang', $controller);
     }
 
+    /**
+     * The table's own filters build three Select2 widgets (static and API, desktop and mobile
+     * sheet). They translated three messages of their own and nothing else: "Loading more
+     * results…", "The results could not be loaded" and the clear button's "Remove all items"
+     * stayed in English. Each now starts from the same object.
+     */
+    public function testEveryTableFilterStartsFromTheCatalogueMessages(): void
+    {
+        $controller = self::read('controllers/datatable_controller.js');
+
+        self::assertStringContainsString("import { select2Language } from '../select2-language';", $controller);
+        self::assertSame(2, preg_match_all('/^\s*language: select2Language\(\),$/m', $controller), 'The static filter and the desktop filter.');
+        self::assertSame(2, substr_count($controller, "...select2Language(),\n                    inputTooShort: () => this.t('datatable.filter.input_too_short'),"), 'The two API filters keep their own three messages over the rest.');
+    }
+
     public function testEverySelect2MessageReadsItsCatalogueKey(): void
     {
         preg_match_all(

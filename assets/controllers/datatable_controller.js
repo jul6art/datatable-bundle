@@ -4,6 +4,7 @@ import { useBlockable } from '../mixins/blockable';
 import iriResolver from '../services/iri-resolver';
 import mercureBus from '../services/mercure-bus';
 import { getRegisteredRenderers } from '../renderers';
+import { select2Language } from '../select2-language';
 import { installActionsDropdown } from '../services/dropdown';
 
 /**
@@ -2071,6 +2072,7 @@ export default class extends Controller {
                 width: '100%',
                 minimumResultsForSearch: 8,
                 dropdownParent: sheet,
+                language: select2Language(),
             });
         });
 
@@ -2082,6 +2084,7 @@ export default class extends Controller {
                 minimumInputLength: 1,
                 dropdownParent: body.closest('.dt-mobile-filter-sheet'),
                 language: {
+                    ...select2Language(),
                     inputTooShort: () => this.t('datatable.filter.input_too_short'),
                     searching: () => this.t('datatable.filter.searching'),
                     noResults: () => this.t('datatable.filter.no_results'),
@@ -2353,11 +2356,15 @@ export default class extends Controller {
                 allowClear: true,
                 width: '100%',
                 minimumResultsForSearch: select.dataset.filterType === 'api' ? 0 : Infinity,
+                // Every other message Select2 shows — "Loading more results…", the clear
+                // button's "Remove all items" — from the catalogue too (`select2-language.js`).
+                language: select2Language(),
             };
 
             if (select.dataset.filterType === 'api') {
                 config.minimumInputLength = 1;
                 config.language = {
+                    ...select2Language(),
                     inputTooShort: () => this.t('datatable.filter.input_too_short'),
                     searching: () => this.t('datatable.filter.searching'),
                     noResults: () => this.t('datatable.filter.no_results'),

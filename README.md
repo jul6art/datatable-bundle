@@ -714,6 +714,10 @@ datatable:
         search: 'Rechercher'
 ```
 
+The table's own filters start from the same messages since 2.5.5 (their `datatable.filter.*`
+keys still win for the three they had), so "Loading more results…" and the clear button's label
+follow the page too.
+
 A Select2 the project initialises itself takes the same messages:
 
 ```js
