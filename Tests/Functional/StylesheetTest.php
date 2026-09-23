@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Jul6Art\DatatableBundle\Tests\Functional;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -459,5 +460,117 @@ final class StylesheetTest extends TestCase
         self::assertStringContainsString('installActionsDropdown()', $controller, '…et le contrôleur doit l\'installer.');
         self::assertStringContainsString('window._toggleDtDropdown =', $service);
         self::assertStringContainsString('_positionDtDropdown', $service);
+    }
+
+    /**
+     * ⚠️ **iOS Safari zooms on any field under 16 px** — on focus, every time, and leaves the page
+     * zoomed. Every field the table draws was 12-14 px for the desktop density (measured
+     * 2026-09-23 at 360 px: search 14, page length 14, mobile filter sheet 14, Select2 search 14).
+     *
+     * The query is EVALUATED for a 360-px viewport with a FINE pointer — what a check in a
+     * narrowed desktop window sees — and for a 1280-px one, which keeps the desktop density: a
+     * regex on the rule's text would stay green while the query no longer matched a phone.
+     *
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function phoneFields(): iterable
+    {
+        yield 'global search' => ['datatable.css', '.dt-container .dt-search input'];
+        yield 'page length' => ['datatable.css', '.dt-container .dt-length select'];
+        yield 'date range bound' => ['datatable.css', '.dt-filter-daterange input.dt-filter-date'];
+        yield 'mobile sheet date' => ['datatable.css', '.dt-mobile-filter-sheet input.dt-mobile-filter-input'];
+        yield 'mobile sheet select' => ['datatable.css', '.dt-mobile-filter-sheet select.dt-mobile-filter-select'];
+        yield 'bulk action select' => ['datatable.css', 'select.dt-bulk-bar__select'];
+        yield 'saved view name' => ['datatable.css', 'input.dt-views-input'];
+        yield 'Select2 dropdown search' => ['select2.css', '.select2-container .select2-search--dropdown .select2-search__field'];
+        yield 'Select2 inline search' => ['select2.css', '.select2-container--default .select2-selection--multiple .select2-search--inline .select2-search__field'];
+    }
+
+    #[DataProvider('phoneFields')]
+    public function testEveryFieldIsSixteenPixelsOnAPhone(string $sheet, string $selector): void
+    {
+        self::assertGreaterThanOrEqual(16, self::fontSizeAt(self::read($sheet), 360, $selector), \sprintf(
+            '`%s` (%s) is under 16 px on a 360-px screen: Safari zooms on every focus.',
+            $selector,
+            $sheet,
+        ));
+        self::assertSame(0, self::fontSizeAt(self::read($sheet), 1280, $selector), \sprintf(
+            '`%s` (%s) takes the phone size on a desktop: the desktop density is lost.',
+            $selector,
+            $sheet,
+        ));
+    }
+
+    /**
+     * The phone rule must be plain CSS: an `@apply`, or a utility written in the controller's
+     * markup, only exists in a consumer build whose scanner reads this bundle.
+     */
+    public function testThePhoneSizeIsPlainCss(): void
+    {
+        foreach (['datatable.css', 'select2.css'] as $sheet) {
+            $phone = array_filter(self::phoneBlocks(self::read($sheet), 360), static fn (string $body): bool => str_contains($body, 'font-size: 16px'));
+
+            self::assertNotEmpty($phone, $sheet.' has no phone-size block.');
+
+            foreach ($phone as $body) {
+                self::assertStringNotContainsString('@apply', $body, $sheet);
+            }
+        }
+    }
+
+    /** The largest pixel `font-size` a `@media` block matching this width gives the selector, or 0. */
+    private static function fontSizeAt(string $css, int $width, string $selector): int
+    {
+        $size = 0;
+
+        foreach (self::phoneBlocks($css, $width) as $body) {
+            preg_match_all('/([^{}]+)\{([^{}]*)\}/', $body, $rules, \PREG_SET_ORDER);
+
+            foreach ($rules as [, $selectors, $declarations]) {
+                $listed = array_map(static fn (string $s): string => (string) preg_replace('/\s+/', ' ', trim($s)), explode(',', $selectors));
+
+                if (\in_array($selector, $listed, true) && 1 === preg_match('/font-size:\s*(\d+)px/', $declarations, $m)) {
+                    $size = max($size, (int) $m[1]);
+                }
+            }
+        }
+
+        return $size;
+    }
+
+    /**
+     * The bodies of the `@media` blocks that hold for this width and a fine pointer.
+     *
+     * @return list<string>
+     */
+    private static function phoneBlocks(string $css, int $width): array
+    {
+        $css = (string) preg_replace('#/\*.*?\*/#s', '', $css);
+        preg_match_all('/@media ([^{]+)\{\s*((?:[^{}]+\{[^{}]*\}\s*)+)\}/', $css, $blocks, \PREG_SET_ORDER);
+        $matching = [];
+
+        foreach ($blocks as [, $query, $body]) {
+            foreach (explode(',', $query) as $part) {
+                preg_match_all('/\(([a-z-]+)\s*:\s*([^)]+)\)/', $part, $features, \PREG_SET_ORDER);
+                $holds = [] !== $features;
+
+                foreach ($features as [, $feature, $value]) {
+                    $holds = $holds && match ($feature) {
+                        'max-width' => $width <= (int) $value,
+                        'min-width' => $width >= (int) $value,
+                        'pointer', 'any-pointer' => 'fine' === trim($value),
+                        default => false,
+                    };
+                }
+
+                if ($holds) {
+                    $matching[] = $body;
+
+                    break;
+                }
+            }
+        }
+
+        return $matching;
     }
 }

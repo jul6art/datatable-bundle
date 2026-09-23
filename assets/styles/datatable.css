@@ -716,3 +716,35 @@ table.dataTable > tbody > tr.child span.dtr-data {
 }
 
 /* On desktop (≥ 1024px), card list is hidden by default (JS toggles via .hidden class) */
+
+/*
+ * ⚠️ **iOS Safari zooms on any field under 16 px**, on every focus, and leaves the page zoomed.
+ * Every field this table draws was 12-14 px for the desktop density: the global search, the page
+ * length, the date bounds of a range filter, the mobile filter sheet, the bulk-action select and
+ * the saved-view name. On a phone they get 16 px.
+ *
+ * - The query is admin-bundle's (`(pointer: coarse), (max-width: 1023px)`): a touch device, or a
+ *   phone-sized layout whatever the pointer says, so a check made in a narrowed desktop window
+ *   sees the fix. The desktop density — the reason for the small sizes — is kept.
+ * - Plain CSS, no `@apply`, no utility written in the controller's markup: a utility class only
+ *   exists in the consumer's build if its scanner happens to read this bundle.
+ * - Each selector is one class or one element above the rule it overrides (`.dt-container`,
+ *   `input.`), so it wins whatever order the consumer imports the sheets in — the mobile sheet's
+ *   `.dt-mobile-filter-sheet .dt-mobile-filter-input` lives in `select2.css`, imported later.
+ * - `16px` and not `text-base`: an account font scale can resize a rem; Safari's threshold is
+ *   absolute.
+ *
+ * The Select2 search fields are in `select2.css`, with the rest of Select2. Guarded by
+ * `StylesheetTest::testEveryFieldIsSixteenPixelsOnAPhone`.
+ */
+@media (pointer: coarse), (max-width: 1023px) {
+    .dt-container .dt-search input,
+    .dt-container .dt-length select,
+    .dt-filter-daterange input.dt-filter-date,
+    .dt-mobile-filter-sheet input.dt-mobile-filter-input,
+    .dt-mobile-filter-sheet select.dt-mobile-filter-select,
+    select.dt-bulk-bar__select,
+    input.dt-views-input {
+        font-size: 16px;
+    }
+}
