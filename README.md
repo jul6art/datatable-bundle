@@ -189,7 +189,9 @@ data-{{ datatable_stimulus() }}-initial-search-value="{{ app.request.query.get('
 ```
 
 It wins over the term remembered in `sessionStorage`, on the first build only (a column drag does not
-bring it back over what was typed since), and the search box shows it. Empty — the default — changes
+bring it back over what was typed since), and the search box shows it. The table then opens on that
+term **alone** — no remembered filter, no starred view — so the count the link promised is the count
+on screen. Empty — the default — changes
 nothing.
 
 ### 3. Wire the front end

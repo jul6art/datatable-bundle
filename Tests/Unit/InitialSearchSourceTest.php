@@ -57,6 +57,21 @@ final class InitialSearchSourceTest extends TestCase
         );
     }
 
+    /**
+     * A page's term opens the table on THAT term alone: neither the session's filters nor the
+     * starred view's. "See all 7 results" landing on "1 to 2 of 2" because a status filter was
+     * still remembered from earlier is the count mismatch the link exists to avoid (cegeta
+     * ADR-0037, REVIEWER 2026-09-23).
+     */
+    public function testThePagesTermOpensTheTableWithoutRememberedFilters(): void
+    {
+        self::assertMatchesRegularExpression(
+            "/_openingFilters\\(saved\\)\\s*\\{\\s*(?:\\/\\/[^\\n]*\\s*)*if\\s*\\(''\\s*!==\\s*this\\.initialSearchValue\\)\\s*\\{?\\s*return\\s*\\{\\};/",
+            self::source(),
+            'Un terme donné par la page doit ouvrir la table sans filtre mémorisé ni vue étoilée.',
+        );
+    }
+
     private static function source(): string
     {
         $path = \dirname(__DIR__, 2).'/assets/controllers/datatable_controller.js';

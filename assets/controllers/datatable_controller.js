@@ -1256,6 +1256,13 @@ export default class extends Controller {
      * sticky behaviour back.
      */
     _openingFilters(saved) {
+        // A term handed by the page ("see all 7 results") opens the table on that term ALONE: a
+        // status filter remembered from earlier, or a starred view, would show "2 of 2" under a
+        // link that promised 7 (cegeta ADR-0037). The user's views are one click away.
+        if ('' !== this.initialSearchValue) {
+            return {};
+        }
+
         const view = (this._views || []).find(candidate => candidate.default);
         if (view) {
             this._activeViewId = view.id;
