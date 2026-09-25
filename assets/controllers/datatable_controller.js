@@ -2990,6 +2990,15 @@ export default class extends Controller {
                 if (!Number.isFinite(n)) return '—';
                 return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             },
+            // A COUNTED value — stock level, threshold, line quantity: only the decimals it has.
+            // A `decimal(_, 2)` column sends "2.00" for two pieces; `number2` would print "2,00",
+            // the shape of a price. Same rule as `format_quantity` in core-bundle, server side.
+            quantity: (data) => {
+                if (data === null || data === undefined || data === '') return '—';
+                const n = Number(data);
+                if (!Number.isFinite(n)) return '—';
+                return n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            },
             // P21 — stock quantity with a red warning badge when negative
             // (oversell). The hard block stays governed server-side by
             // `erp.order.allow_oversell`; this only surfaces the state.

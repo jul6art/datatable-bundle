@@ -229,9 +229,9 @@ And the stylesheets, which use Tailwind's `@apply`:
 
 ### 4. Register the badge renderers of your own domain
 
-The controller ships twenty generic renderers: `statusBadge`, `activeBadge`, `booleanBadge`,
+The controller ships twenty-one generic renderers: `statusBadge`, `activeBadge`, `booleanBadge`,
 `iri`, `userIri`, `userNameWithAvatar`, `nameLink`, `date`, `dateOnly`, `monoCode`, `truncated`,
-`colorSwatch`, `country`, `currency`, `number0`, `number2`, `percent0`, `fileSize`, `durationMs`,
+`colorSwatch`, `country`, `currency`, `number0`, `number2`, `quantity`, `percent0`, `fileSize`, `durationMs`,
 `chipList`.
 
 > ⚠️ **Dates render as `DD/MM/YYYY HH:mm` (`dateOnly`: `DD/MM/YYYY`), in every language.** The
