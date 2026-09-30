@@ -3620,6 +3620,20 @@ export default class extends Controller {
         this._toggleCardView();
     }
 
+    /**
+     * A column's value, read the way DataTables reads it for the table: through its DOTTED path (`user.email` walks
+     * `row.user.email`). The card read `row['user.email']` — a key that does not exist — so a nested primary column
+     * showed a dash and nested secondary fields vanished, while the desktop table was fine (cegeta ADR-0035).
+     *
+     * ⚠️ A flat key that CONTAINS a dot is read as is first: JSON-LD keys and API aliases must keep working.
+     */
+    _valueAt(row, path) {
+        if (row === null || typeof row !== 'object' || typeof path !== 'string') return undefined;
+        if (path in row) return row[path];
+
+        return path.split('.').reduce((value, key) => (value !== null && typeof value === 'object' ? value[key] : undefined), row);
+    }
+
     _renderCard(row, columns) {
         // `meta.col` must be a DATATABLES column index: the renderers that read a descriptor from
         // it subtract the bulk offset and index the effective column list. Handing them the
@@ -3639,7 +3653,7 @@ export default class extends Controller {
 
         // Find the "primary" column (responsivePriority 1 or first column)
         const primaryCol = columns.find(c => c.responsivePriority === 1) || columns[0];
-        const primaryValue = row[primaryCol.data];
+        const primaryValue = this._valueAt(row, primaryCol.data);
         const primaryRenderer = primaryCol.render ? this.getRenderer(primaryCol.render) : null;
         const primaryHtml = primaryRenderer
             ? primaryRenderer(primaryValue, 'display', row, metaCol(primaryCol))
@@ -3649,7 +3663,7 @@ export default class extends Controller {
         const secondaryFields = columns
             .filter(c => c.data !== primaryCol.data && c.data !== 'id')
             .map(c => {
-                const value = row[c.data];
+                const value = this._valueAt(row, c.data);
                 if (value === null || value === undefined || value === '') return null;
                 const renderer = c.render ? this.getRenderer(c.render) : null;
                 const html = renderer
