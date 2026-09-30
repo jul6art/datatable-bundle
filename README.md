@@ -623,6 +623,16 @@ both the JWT allow-list and the subscription list — so the topics are decided 
 of drifting between a template and a claim. `jul6art/push-bundle` mints the token
 (`SubscriberCookieFactory`) and publishes the changes (`EntityChangePublisher`).
 
+> ⚠️ **The catch-up after a disconnect is bounded to 5 minutes.** The bus keeps the last event ID in
+> `sessionStorage` and hands it back to the hub on reconnection, so a brief network drop loses
+> nothing. A hub with history, though, replays *everything* that followed that ID: a tab idle for
+> five hours was served five hours of stale events at once. Past the bound, the bus reconnects with
+> no ID — the browser's own reconnect included. Override it in seconds:
+>
+> ```twig
+> <meta name="mercure-replay-max-age" content="600">
+> ```
+
 JavaScript translations
 -----------------------
 

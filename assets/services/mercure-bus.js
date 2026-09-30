@@ -25,11 +25,23 @@
  *
  * Resilience:
  *   - Last-Event-ID is persisted in sessionStorage between navigations so
- *     the hub replays anything emitted during a brief disconnect.
+ *     the hub replays anything emitted during a BRIEF disconnect.
  *   - Native EventSource auto-reconnect handles transient network failures.
+ *
+ * ⚠️ The replay is bounded in time (default 5 minutes, override with
+ * `<meta name="mercure-replay-max-age" content="<seconds>">`). A hub with
+ * history replays EVERYTHING that followed the ID it is given: a tab that
+ * received its last event at 11:56 and reconnected at 16:53 was served five
+ * hours of stale `created` events at once — and every matching table reloaded
+ * for each of them. Past the bound, the bus reconnects WITHOUT an ID: a table
+ * that missed that much reloads anyway, it does not need the history. The same
+ * bound applies to the browser's own reconnect, which sends the last ID it saw
+ * however old it is (a laptop waking up): the bus replaces it with a fresh
+ * connection.
  */
 
 const LAST_EVENT_ID_KEY = 'mercure_last_event_id';
+const DEFAULT_REPLAY_MAX_AGE_SECONDS = 300;
 
 class MercureBus {
     constructor() {
@@ -38,7 +50,8 @@ class MercureBus {
         this._topics = new Set();
         this._connectPromise = null;
         this._initialized = false;
-        this._lastEventId = this._readLastEventId();
+        // `{ id, at }` — the ID and when it was RECEIVED, so its age can be told.
+        this._lastEvent = this._readLastEvent();
     }
 
     onMessage(handler) {
@@ -111,19 +124,43 @@ class MercureBus {
             url.searchParams.append('topic', topic);
         }
         url.searchParams.set('authorization', token);
-        if (this._lastEventId) {
-            url.searchParams.set('lastEventID', this._lastEventId);
+        const lastEventId = this._replayableId();
+        if (lastEventId) {
+            url.searchParams.set('lastEventID', lastEventId);
         }
 
         const es = new EventSource(url.toString());
         es.onmessage = (event) => this._dispatch(event);
+        // ⚠️ The browser reconnects on its own and sends the last ID it received, whatever its age.
+        // Past the replay bound, that reconnect would replay hours of history: close it and open a
+        // fresh connection instead, which carries no ID.
+        es.onerror = () => {
+            if (es.readyState === EventSource.CONNECTING && this._lastEvent && !this._replayableId()) {
+                es.close();
+                this._eventSource = null;
+                this._reconnect();
+            }
+        };
         this._eventSource = es;
+    }
+
+    /** The last ID if it is recent enough to be replayed from, otherwise null. */
+    _replayableId() {
+        if (!this._lastEvent) return null;
+
+        return Date.now() - this._lastEvent.at <= this._replayMaxAgeMs() ? this._lastEvent.id : null;
+    }
+
+    _replayMaxAgeMs() {
+        const seconds = Number(document.querySelector('meta[name="mercure-replay-max-age"]')?.content);
+
+        return (Number.isFinite(seconds) && seconds >= 0 ? seconds : DEFAULT_REPLAY_MAX_AGE_SECONDS) * 1000;
     }
 
     _dispatch(event) {
         if (event.lastEventId) {
-            this._lastEventId = event.lastEventId;
-            this._writeLastEventId(event.lastEventId);
+            this._lastEvent = { id: event.lastEventId, at: Date.now() };
+            this._writeLastEvent(this._lastEvent);
         }
 
         let payload;
@@ -134,12 +171,22 @@ class MercureBus {
         }
     }
 
-    _readLastEventId() {
-        try { return sessionStorage.getItem(LAST_EVENT_ID_KEY) || null; } catch { return null; }
+    /**
+     * ⚠️ A value stored by an earlier version is a BARE ID, with no date: it cannot prove its age,
+     * so it is treated as expired rather than replayed from.
+     */
+    _readLastEvent() {
+        try {
+            const saved = JSON.parse(sessionStorage.getItem(LAST_EVENT_ID_KEY) || 'null');
+
+            return saved && typeof saved.id === 'string' && typeof saved.at === 'number' ? saved : null;
+        } catch {
+            return null;
+        }
     }
 
-    _writeLastEventId(id) {
-        try { sessionStorage.setItem(LAST_EVENT_ID_KEY, id); } catch { /* ignore */ }
+    _writeLastEvent(lastEvent) {
+        try { sessionStorage.setItem(LAST_EVENT_ID_KEY, JSON.stringify(lastEvent)); } catch { /* ignore */ }
     }
 }
 
