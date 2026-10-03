@@ -94,6 +94,18 @@ final class DataTableTest extends AbstractFunctionalTestCase
         self::assertSame('search', $filters[3]['searchKey']);
     }
 
+    /**
+     * The suggestions are sorted on the key the filter DISPLAYS, unless it names another (cereezer
+     * report 2026-10-03, P2): an unsorted list came back newest first.
+     */
+    public function testAnApiFilterOrdersItsSuggestionsByTheDisplayedKey(): void
+    {
+        $filters = $this->provider()->getFilters();
+
+        self::assertSame('name', $filters[2]['orderKey']);
+        self::assertSame('label', $filters[3]['orderKey'], 'An explicit `orderKey` wins over the displayed key.');
+    }
+
     public function testADependentFilterDeclaresWhatItDependsOn(): void
     {
         $filters = $this->provider()->getFilters();

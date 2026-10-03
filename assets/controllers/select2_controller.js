@@ -1,5 +1,5 @@
 import { Controller } from '@hotwired/stimulus';
-import { liveFormParams } from '../select2-config';
+import { ajaxQuery, liveFormParams, resolveOrderKey } from '../select2-config';
 import { select2Language } from '../select2-language';
 
 /**
@@ -36,6 +36,10 @@ export default class extends Controller {
         // currently selected project. Changing the parent clears this select.
         dependsOn: { type: String, default: '' },
         dependsParam: { type: String, default: '' },
+        // The key the suggestions are sorted on, ascending (cereezer report 2026-10-03, P2). Empty
+        // = the displayed `textKey`; `'none'` sends no order, for a list whose server order IS the
+        // meaning. An unsorted list came back newest first.
+        orderKey: { type: String, default: '' },
     };
 
     connect() {
@@ -117,10 +121,11 @@ export default class extends Controller {
                     ...(window.organizationSlug ? { 'X-ORGANIZATION': window.organizationSlug } : {}),
                 },
                 data: (params) => {
-                    const query = {};
-                    const searchParam = this.searchKeyValue || this.textKeyValue;
-                    query[searchParam] = params.term || '';
-                    query.size = 20;
+                    const query = ajaxQuery({
+                        searchParam: this.searchKeyValue || this.textKeyValue,
+                        term: params.term,
+                        orderKey: resolveOrderKey(this.orderKeyValue, this.textKeyValue),
+                    });
                     // Extra parameters published by the enclosing form, read LIVE at each search
                     // so a change elsewhere in the form takes effect without re-initialising the
                     // widget. What they are is the application's business — see

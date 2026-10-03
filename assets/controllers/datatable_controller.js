@@ -5,6 +5,7 @@ import iriResolver from '../services/iri-resolver';
 import mercureBus from '../services/mercure-bus';
 import { getRegisteredRenderers } from '../renderers';
 import { select2Language } from '../select2-language';
+import { ajaxQuery, resolveOrderKey } from '../select2-config';
 import { installActionsDropdown } from '../services/dropdown';
 
 /**
@@ -1965,6 +1966,7 @@ export default class extends Controller {
                     select.dataset.filterTextKey = config.textKey || 'name';
                     select.dataset.filterIdKey = config.idKey || 'id';
                     select.dataset.filterSearchKey = config.searchKey || config.textKey || 'name';
+                    select.dataset.filterOrderKey = config.orderKey || config.textKey || 'name';
                     if (config.dependsOn) select.dataset.filterDependsOn = config.dependsOn;
                     if (config.dependsParam) select.dataset.filterDependsParam = config.dependsParam;
 
@@ -2099,10 +2101,11 @@ export default class extends Controller {
                         ...(window.organizationSlug ? { 'X-ORGANIZATION': window.organizationSlug } : {}),
                     },
                     data: (params) => {
-                        const query = {};
-                        const searchParam = select.dataset.filterSearchKey || select.dataset.filterTextKey || 'name';
-                        query[searchParam] = params.term || '';
-                        query.size = 20;
+                        const query = ajaxQuery({
+                            searchParam: select.dataset.filterSearchKey || select.dataset.filterTextKey || 'name',
+                            term: params.term,
+                            orderKey: resolveOrderKey(select.dataset.filterOrderKey, select.dataset.filterTextKey),
+                        });
                         this._applyDependentScope(select, query);
                         return query;
                     },
@@ -2267,6 +2270,7 @@ export default class extends Controller {
             select.dataset.filterTextKey = config.textKey || 'name';
             select.dataset.filterIdKey = config.idKey || 'id';
             select.dataset.filterSearchKey = config.searchKey || config.textKey || 'name';
+            select.dataset.filterOrderKey = config.orderKey || config.textKey || 'name';
             if (config.dependsOn) select.dataset.filterDependsOn = config.dependsOn;
             if (config.dependsParam) select.dataset.filterDependsParam = config.dependsParam;
         }
@@ -2379,10 +2383,11 @@ export default class extends Controller {
                         ...(window.organizationSlug ? { 'X-ORGANIZATION': window.organizationSlug } : {}),
                     },
                     data: (params) => {
-                        const query = {};
-                        const searchParam = select.dataset.filterSearchKey || select.dataset.filterTextKey || 'name';
-                        query[searchParam] = params.term || '';
-                        query.size = 20;
+                        const query = ajaxQuery({
+                            searchParam: select.dataset.filterSearchKey || select.dataset.filterTextKey || 'name',
+                            term: params.term,
+                            orderKey: resolveOrderKey(select.dataset.filterOrderKey, select.dataset.filterTextKey),
+                        });
                         this._applyDependentScope(select, query);
                         return query;
                     },

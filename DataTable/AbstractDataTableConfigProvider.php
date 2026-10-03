@@ -201,9 +201,15 @@ abstract class AbstractDataTableConfigProvider
      * autocomplete query. Changing the parent clears this filter. Cf.
      * `docs/corrections/2026-06-14-3.md` P1.
      *
+     * `orderKey` is the property the suggestions are sorted on, ascending: the request carries
+     * `order[<orderKey>]=asc`. It defaults to `textKey` — what the user reads is what the list is
+     * sorted by — and `'none'` sends no order, for a list whose server order IS the meaning. An API
+     * Platform collection silently ignores an order on a property it does not declare, so the
+     * resource must expose that sort (`order[:property]` or a dedicated `order[<key>]`).
+     *
      * @return array<string, mixed>
      */
-    protected function apiFilter(string $column, string $param, string $placeholderKey, string $url, string $textKey = 'name', string $idKey = 'id', ?string $searchKey = null, string $placeholderDomain = 'messages', ?string $dependsOn = null, ?string $dependsParam = null): array
+    protected function apiFilter(string $column, string $param, string $placeholderKey, string $url, string $textKey = 'name', string $idKey = 'id', ?string $searchKey = null, string $placeholderDomain = 'messages', ?string $dependsOn = null, ?string $dependsParam = null, ?string $orderKey = null): array
     {
         return [
             'column' => $column,
@@ -216,6 +222,7 @@ abstract class AbstractDataTableConfigProvider
             'searchKey' => $searchKey ?? $textKey,
             'dependsOn' => $dependsOn,
             'dependsParam' => $dependsParam,
+            'orderKey' => $orderKey ?? $textKey,
         ];
     }
 

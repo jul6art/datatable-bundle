@@ -38,3 +38,40 @@ export function configureSelect2(declared) {
 export function liveFormParams() {
     return rules;
 }
+
+/**
+ * The query string of ONE autocomplete request — shared by the form picker and both filter builders
+ * (the column filter and the mobile sheet), which were three copies of the same lines.
+ *
+ * `orderKey` asks for the suggestions in ascending order on that key (`order[<key>]=asc`). Without
+ * it the collection answers in its own default order — the TABLE's, most often "newest first" —
+ * and the user scrolls a list sorted by nothing they can see (cereezer report 2026-10-03, P2).
+ * `null` (or `'none'` resolved by the caller) sends no order.
+ *
+ * @param {{ searchParam: string, term?: string|null, orderKey?: string|null }} options
+ * @returns {Record<string, string|number>}
+ */
+export function ajaxQuery({ searchParam, term, orderKey }) {
+    const query = { [searchParam]: term || '', size: 20 };
+
+    if (orderKey) {
+        query[`order[${orderKey}]`] = 'asc';
+    }
+
+    return query;
+}
+
+/**
+ * The order key a picker resolves: the explicit one, else the displayed key; `'none'` opts out.
+ *
+ * @param {string|null|undefined} orderKey
+ * @param {string|null|undefined} textKey
+ * @returns {string|null}
+ */
+export function resolveOrderKey(orderKey, textKey) {
+    if ('none' === orderKey) {
+        return null;
+    }
+
+    return orderKey || textKey || null;
+}

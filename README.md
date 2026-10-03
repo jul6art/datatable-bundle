@@ -741,6 +741,33 @@ A project that `require()`d Select2's locale files for the controller's sake can
 ⚠️ A key the catalogue does not translate is left out of the object, so Select2 keeps its own
 message for it rather than printing the raw key: upgrading before adding the keys changes nothing.
 
+### Sorted autocomplete suggestions (since 2.7.0)
+
+Every Select2 autocomplete — a column filter, the mobile filter sheet, and a form picker
+(`ui--select2` with a `url`) — now asks for its suggestions in **ascending order on the key it
+displays**: the request carries `order[<textKey>]=asc`. Before, none of them sent an order, and the
+collection answered in its own default order — the table's, most often "newest first".
+
+```php
+// the displayed key, by default
+$this->apiFilter('site', 'site', 'asset.filter.site', '/api/sites', searchKey: 'search');
+// another key — the label is computed, the sort runs on a real column
+$this->apiFilter('asset', 'asset', 'defect.filter.asset', '/api/assets', textKey: 'label', orderKey: 'serialNumber');
+// no order: the server's order IS the meaning (a rank, a priority)
+$this->apiFilter('level', 'level', 'x.filter.level', '/api/levels', orderKey: 'none');
+```
+
+A form picker takes the same option as a Stimulus value: `data-ui--select2-order-key-value`.
+
+⚠️ API Platform **silently ignores** an order on a property the resource does not declare: the
+suggestions then keep the default order, nothing fails. The sorted key must be exposed —
+`order[:property]` with the key in its `properties`, or a dedicated `order[<key>]` parameter. A
+project should guard that correspondence with a test, the way it already guards `searchKey`.
+
+The three request builders now share one function, `ajaxQuery()` from
+`@jul6art/datatable-bundle/select2-config`; a project that builds its own Select2 request can use it
+too.
+
 ### Labels the table draws on its own (since 2.5.6)
 
 Five labels used to be written into the controller, two of them in French on pages of every
