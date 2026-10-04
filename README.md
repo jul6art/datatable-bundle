@@ -145,6 +145,14 @@ final class UserDataTableConfigProvider extends AbstractDataTableConfigProvider
 > `?order[fullName]=` and the API answers unsorted — in silence. A column that cannot be sorted
 > says so with `readOnlyColumn()`.
 
+> ⚠️ **An action's `icon` is a NAME from a fixed table, not a Font Awesome class.** `getFaIcon()`
+> knows `eye`, `pencil`, `user-circle`, `ban`, `check-circle`, `circle-check`, `trash`,
+> `rotate-left`, `shuffle`, `trophy`, `money-bill`, `money-check-dollar`, `paper-plane`,
+> `file-invoice`, `truck-fast`, `columns`, `table-columns`, `folder-open`, `unlink`, `check`,
+> `xmark`, `clock`, `rocket`, `bullhorn`, `lock`, `right-from-bracket`, `play`, `rotate-right`. Any
+> other name renders the `fa-circle-question` fallback — no error, a working button showing a
+> question mark. Add a missing name to the table rather than living with the fallback.
+
 > ⚠️ **`dateRangeFilter`'s `granularity` is not cosmetic.** `'date'` (the default) sends the civil
 > date as picked, for a `date_immutable` column. `'datetime'` converts it to a UTC instant, for a
 > `datetime` column. Getting it wrong shifts every result by one day for every user whose browser

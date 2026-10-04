@@ -3580,6 +3580,10 @@ export default class extends Controller {
             lock: '<i class="fa-solid fa-lock"></i>',
             // Employee offboarding (« Sortir ») — rapport 2026-06-21 P7.
             'right-from-bracket': '<i class="fa-solid fa-right-from-bracket"></i>',
+            // Activate, revise, renew — asked for by cereezer's contract and quote tables, which showed
+            // the question-mark fallback (cereezer review of 2026-10-04).
+            play: '<i class="fa-solid fa-play"></i>',
+            'rotate-right': '<i class="fa-solid fa-rotate-right"></i>',
         };
         return icons[name] || '<i class="fa-solid fa-circle-question"></i>';
     }
