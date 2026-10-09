@@ -680,6 +680,9 @@ import 'datatables.net-rowreorder-dt';
 > position, ascending, no search, no filter, every row on one page. Dragging a row of a filtered or
 > second page would write positions against rows the user cannot see.
 
+Below 1024px the table gives way to cards: each card carries **Up** and **Down** in its header,
+under the same conditions — no grip, a card is not a table row RowReorder can drag (since 2.9.2).
+
 ### Keys to translate
 
 ```yaml

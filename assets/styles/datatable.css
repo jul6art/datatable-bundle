@@ -278,8 +278,18 @@ table.dataTable th.dt-bulk-checkbox-col {
     @apply inline-flex items-center gap-1 invisible;
 }
 
-table.is-reorderable .dt-reorder {
+table.is-reorderable .dt-reorder,
+.dt-card-list.is-reorderable .dt-reorder {
     @apply visible;
+}
+
+/* In a card the buttons take room only while they can be used (2.9.2). */
+.dt-card-list:not(.is-reorderable) .dt-reorder {
+    @apply hidden;
+}
+
+.dt-card-header .dt-reorder {
+    @apply flex-shrink-0;
 }
 
 .dt-reorder__grip {

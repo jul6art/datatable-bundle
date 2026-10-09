@@ -2814,14 +2814,17 @@ export default class extends Controller {
     /**
      * The handle of a row: a grip to drag (mouse, touch) and two buttons for the keyboard and the
      * screen reader, which move the row one place and keep the focus on the button pressed.
+     *
+     * A card (the view below 1024px) gets the buttons without the grip (2.9.2): RowReorder drags
+     * table rows, and a card is not one.
      */
-    _reorderCell(row) {
+    _reorderCell(row, grip = true) {
         const id = this._escAttr(String(row.id));
         const up = this._escAttr(this.t('datatable.reorder.up'));
         const down = this._escAttr(this.t('datatable.reorder.down'));
 
         return `<span class="dt-reorder">
-            <span class="dt-reorder__grip" aria-hidden="true"><i class="fa-solid fa-grip-vertical"></i></span>
+            ${grip ? '<span class="dt-reorder__grip" aria-hidden="true"><i class="fa-solid fa-grip-vertical"></i></span>' : ''}
             <button type="button" class="dt-reorder__move" data-reorder-move="-1" data-id="${id}" aria-label="${up}" title="${up}"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></button>
             <button type="button" class="dt-reorder__move" data-reorder-move="1" data-id="${id}" aria-label="${down}" title="${down}"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button>
         </span>`;
@@ -2924,6 +2927,7 @@ export default class extends Controller {
             && info.recordsDisplay === info.recordsTotal;
 
         this.element.classList.toggle('is-reorderable', this._reorderable);
+        this._cardContainer?.classList.toggle('is-reorderable', this._reorderable);
 
         if (this.dataTable.rowReorder) {
             this._reorderable ? this.dataTable.rowReorder.enable() : this.dataTable.rowReorder.disable();
@@ -2933,8 +2937,13 @@ export default class extends Controller {
         if (this._reorderFocus) {
             const { id, step } = this._reorderFocus;
             this._reorderFocus = null;
-            const buttons = this.element.querySelectorAll(`[data-reorder-move][data-id="${CSS.escape(String(id))}"]`);
-            const pressed = [...buttons].find((button) => Number(button.dataset.reorderMove) === step);
+            // The table's buttons or the card's, whichever the screen shows.
+            const selector = `[data-reorder-move][data-id="${CSS.escape(String(id))}"]`;
+            const buttons = [this.element, this._cardContainer]
+                .filter(Boolean)
+                .flatMap((scope) => [...scope.querySelectorAll(selector)])
+                .filter((button) => button.offsetParent !== null);
+            const pressed = buttons.find((button) => Number(button.dataset.reorderMove) === step);
             (pressed && !pressed.disabled ? pressed : buttons[0])?.focus();
         }
     }
@@ -3802,6 +3811,10 @@ export default class extends Controller {
         if (!this._cardContainer) {
             this._cardContainer = document.createElement('div');
             this._cardContainer.className = 'dt-card-list hidden';
+            // The cards live OUTSIDE the `<table>`, where the Up and Down listener is wired: their
+            // clicks are handed to it from here. Read at click time, so a reconnect that rewires it
+            // is followed, and a disconnect that drops it is too.
+            this._cardContainer.addEventListener('click', (event) => this._onReorderClick?.(event));
             // Insert after the table wrapper
             const tableWrapper = container.querySelector('.dt-scroll, table');
             if (tableWrapper) {
@@ -3890,6 +3903,10 @@ export default class extends Controller {
         // Actions
         const actionsHtml = this.renderActions(row);
 
+        // Up and Down, when the page opted the table in (2.9.2). Without them a list was ordered
+        // from a desktop only: below 1024px the table — and its handle column — is not shown.
+        const reorderHtml = this._reorderEnabled ? this._reorderCell(row, false) : '';
+
         // Soft-deleted rows get the same red treatment as the desktop
         // table — the desktop variant uses a `<tr>` class but the card
         // layout has its own block, so both surfaces stay visually
@@ -3899,6 +3916,7 @@ export default class extends Controller {
         return `
             <div class="dt-card${deletedClass}">
                 <div class="dt-card-header">
+                    ${reorderHtml}
                     <div class="dt-card-primary">${primaryHtml}</div>
                     ${actionsHtml ? `<div class="dt-card-actions">${actionsHtml}</div>` : ''}
                 </div>
