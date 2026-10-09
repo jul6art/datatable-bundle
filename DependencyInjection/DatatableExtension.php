@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Jul6Art\DatatableBundle\DependencyInjection;
 
+use Doctrine\ORM\EntityManagerInterface;
 use Jul6Art\DataflowBundle\Report\ReportRunner;
 use Jul6Art\DatatableBundle\Controller\DatatablePreferenceController;
+use Jul6Art\DatatableBundle\Controller\DatatableReorderController;
+use Jul6Art\DatatableBundle\DataTable\AbstractDataTableConfigProvider;
 use Jul6Art\DatatableBundle\DataTable\AdminDataTableConfig;
 use Jul6Art\DatatableBundle\Translation\DeclaredTranslationKeys;
 use Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension;
@@ -17,6 +20,7 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 
@@ -65,11 +69,18 @@ class DatatableExtension extends Extension
         $singleToken = self::asString($csrf['single'] ?? null, 'datatable_action');
         $bulkToken = self::asString($csrf['bulk'] ?? null, 'bulk_action');
         $preferencesToken = self::asString($csrf['preferences'] ?? null, 'datatable_preferences');
+        $reorderToken = self::asString($csrf['reorder'] ?? null, 'datatable_reorder');
         $container->setParameter('datatable.csrf.single', $singleToken);
         $container->setParameter('datatable.csrf.bulk', $bulkToken);
         $container->setParameter('datatable.csrf.preferences', $preferencesToken);
+        $container->setParameter('datatable.csrf.reorder', $reorderToken);
+
+        // Every config provider, tagged: the row reorder endpoint (2.9) finds its table by key.
+        $container->registerForAutoconfiguration(AbstractDataTableConfigProvider::class)
+            ->addTag('datatable.config_provider');
 
         $this->registerPreferences($loader, $container, $preferencesToken);
+        $this->registerReorder($loader, $container, $reorderToken);
         $this->registerExport($loader);
 
         $tenant = \is_array($config['tenant'] ?? null) ? $config['tenant'] : [];
@@ -98,7 +109,8 @@ class DatatableExtension extends Extension
             ->setArgument('$translationDomain', $domain)
             ->setArgument('$singleTokenId', $singleToken)
             ->setArgument('$bulkTokenId', $bulkToken)
-            ->setArgument('$preferencesTokenId', $preferencesToken);
+            ->setArgument('$preferencesTokenId', $preferencesToken)
+            ->setArgument('$reorderTokenId', $reorderToken);
     }
 
     /**
@@ -124,6 +136,27 @@ class DatatableExtension extends Extension
         $loader->load('preferences.yaml');
 
         $container->getDefinition(DatatablePreferenceController::class)
+            ->setArgument('$csrfTokenManager', interface_exists(CsrfTokenManagerInterface::class)
+                ? new Reference('security.csrf.token_manager', ContainerInterface::NULL_ON_INVALID_REFERENCE)
+                : null)
+            ->setArgument('$csrfTokenId', $tokenId);
+    }
+
+    /**
+     * The row reorder endpoint (2.9). It writes entities, so it exists only where Doctrine ORM
+     * does — a `suggest` of this bundle — and where routing and the authorization checker's
+     * interface do. Whether the SERVICES are there (an entity manager, SecurityBundle's checker)
+     * is settled later, by {@see Compiler\ReorderControllerPass}.
+     */
+    private function registerReorder(YamlFileLoader $loader, ContainerBuilder $container, string $tokenId): void
+    {
+        if (!class_exists(Route::class) || !interface_exists(EntityManagerInterface::class) || !interface_exists(AuthorizationCheckerInterface::class)) {
+            return;
+        }
+
+        $loader->load('reorder.yaml');
+
+        $container->getDefinition(DatatableReorderController::class)
             ->setArgument('$csrfTokenManager', interface_exists(CsrfTokenManagerInterface::class)
                 ? new Reference('security.csrf.token_manager', ContainerInterface::NULL_ON_INVALID_REFERENCE)
                 : null)

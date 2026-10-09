@@ -266,6 +266,48 @@ table.dataTable th.dt-bulk-checkbox-col {
     @apply w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent-600 focus:ring-2 focus:ring-accent-500 cursor-pointer;
 }
 
+/* ── Row reordering (2.9) ─────────────────────────────── */
+
+/* The handle is in every row, usable only while the order on screen is the stored one: the table
+   carries `is-reorderable` then (`_syncReorder()`). Hidden, not removed — no column ever moves. */
+.dt-reorder-col {
+    @apply w-24 whitespace-nowrap;
+}
+
+.dt-reorder {
+    @apply inline-flex items-center gap-1 invisible;
+}
+
+table.is-reorderable .dt-reorder {
+    @apply visible;
+}
+
+.dt-reorder__grip {
+    @apply px-1 text-slate-400 cursor-grab touch-none;
+}
+
+.dt-reorder__move {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500;
+}
+
+/* The row a pointer is carrying. */
+table.dataTable tr.dt-rowReorder-moving {
+    @apply outline outline-2 outline-accent-500;
+}
+
+/* Read by screen readers, not shown: the column title, the announcement of a move. */
+.dt-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 /* ── Action buttons ──────────────────────────────────── */
 
 .action-btn {

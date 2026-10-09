@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Jul6Art\DatatableBundle\Tests\Functional;
 
+use Jul6Art\DatatableBundle\Controller\DatatableReorderController;
+use Jul6Art\DatatableBundle\Reorder\RowReorderer;
 use Jul6Art\DatatableBundle\Translation\DeclaredTranslationKeys;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
@@ -21,6 +23,19 @@ final class ContainerTest extends AbstractFunctionalTestCase
     public function testTheBundleBoots(): void
     {
         self::assertTrue($this->boot()->getParameter('datatable.enabled'));
+    }
+
+    /**
+     * Le réordonnancement (2.9) écrit par l'ORM : sans gestionnaire d'entités ni vérificateur
+     * d'autorisations, son point d'entrée disparaît au lieu de casser la compilation — et
+     * l'application qui n'a ni Doctrine ni pare-feu ne voit rien changer en montant de version.
+     */
+    public function testTheReorderEndpointRemovesItselfWithoutDoctrine(): void
+    {
+        $container = $this->boot();
+
+        self::assertFalse($container->has(DatatableReorderController::class));
+        self::assertFalse($container->has(RowReorderer::class));
     }
 
     /**

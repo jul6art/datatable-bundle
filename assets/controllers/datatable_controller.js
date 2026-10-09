@@ -81,6 +81,11 @@ export default class extends Controller {
         // A search term to OPEN on, handed by the page (`?search=` of a "see all N results" link).
         // It wins over the remembered term on the first build only — see `initializeDataTable`.
         initialSearch: { type: String, default: '' },
+        // Row reordering (2.9) — the `_reorder.html.twig` partial fills the three. Empty URL =
+        // feature off, the default.
+        reorderUrl: { type: String, default: '' },
+        reorderCsrf: { type: String, default: '' },
+        reorderField: { type: String, default: '' },
     };
 
     connect() {
@@ -175,6 +180,10 @@ export default class extends Controller {
 
         this.unblockAll();
         this._destroyFilters();
+        if (this._onReorderClick) {
+            this.element.removeEventListener('click', this._onReorderClick);
+            this._onReorderClick = null;
+        }
         this._removePanelDismiss();
         this._unsubscribeMercure();
         if (this._prefsSaveTimer) {
@@ -469,7 +478,7 @@ export default class extends Controller {
             // `visible()` redraws the header and body in place — no reload, no lost scroll. The
             // filter row is rebuilt rather than synced: DataTables removes the `<th>` of an
             // invisible column, so a row built for every column would sit one cell out of line.
-            this.dataTable.column(index + this._bulkOffset).visible(target.visible, false);
+            this.dataTable.column(index + this._leadingColumns).visible(target.visible, false);
             this._rebuildFilterRow();
             this.dataTable.columns.adjust();
             // Showing a column re-inserts the `<td>` of the LAST draw, not fresh ones. For a
@@ -735,7 +744,7 @@ export default class extends Controller {
         if (!this.dataTable) return;
 
         this._columns.forEach((col, index) => {
-            const column = this.dataTable.column(index + this._bulkOffset);
+            const column = this.dataTable.column(index + this._leadingColumns);
             const wanted = this._isColumnVisible(col.data);
             if (column.visible() !== wanted) column.visible(wanted, false);
         });
@@ -1206,8 +1215,12 @@ export default class extends Controller {
     // ── Column order ↔ DataTables indexes ──────────────────────
 
     /** The bulk checkbox column shifts every DataTables index by one. */
-    get _bulkOffset() {
-        return this._bulkActions.length > 0 ? 1 : 0;
+    /**
+     * The columns prepended before the declared ones: the reorder handle (2.9), then the bulk
+     * checkbox. Every DataTables column index maps back to a declared column through this.
+     */
+    get _leadingColumns() {
+        return (this._reorderEnabled ? 1 : 0) + (this._bulkActions.length > 0 ? 1 : 0);
     }
 
     /**
@@ -1229,7 +1242,7 @@ export default class extends Controller {
         return (keys || [])
             .map(([key, dir]) => [columns.findIndex(col => col.data === key), dir === 'desc' ? 'desc' : 'asc'])
             .filter(([index]) => index >= 0)
-            .map(([index, dir]) => [index + this._bulkOffset, dir]);
+            .map(([index, dir]) => [index + this._leadingColumns, dir]);
     }
 
     /** The reverse, so what is persisted survives a reorder or a hidden column. */
@@ -1239,7 +1252,7 @@ export default class extends Controller {
         const columns = this._columns;
 
         return this.dataTable.order()
-            .map(([index, dir]) => [columns[Number(index) - this._bulkOffset]?.data, dir])
+            .map(([index, dir]) => [columns[Number(index) - this._leadingColumns]?.data, dir])
             .filter(([key]) => Boolean(key));
     }
 
@@ -1309,7 +1322,7 @@ export default class extends Controller {
             if (order.length > 0) return order;
         }
 
-        return [[this._bulkOffset, 'asc']];
+        return [[this._leadingColumns, 'asc']];
     }
 
     // ── Filter row rebuild ─────────────────────────────────────
@@ -1439,6 +1452,13 @@ export default class extends Controller {
                     row.classList.add('datatable-row-deleted');
                 }
             },
+            // Row reordering (2.9) by DataTables' RowReorder extension, which the application loads
+            // (`import 'datatables.net-rowreorder-dt'`). Without it the option is ignored and the
+            // Up and Down buttons still work. `update: false`: the new order goes to the server,
+            // and the table redraws from what the server then answers.
+            rowReorder: this._reorderEnabled
+                ? { selector: '.dt-reorder__grip', dataSrc: this.reorderFieldValue, update: false }
+                : false,
             autoWidth: false,
             retrieve: true,
             destroy: true,
@@ -1448,6 +1468,7 @@ export default class extends Controller {
 
         this.dataTable = new window.DataTable(this.element, config);
         this._injectSearchIcon();
+        this._wireReorder();
         // P2 (2026-05-14-4) — DataTables 2.x wraps the <table> in a
         // `<div class="dt-layout-cell dt-layout-full">`. The `dt-layout-cell`
         // class makes it a flex item inside `.dt-layout-row` which centers
@@ -1518,6 +1539,7 @@ export default class extends Controller {
         this._resetBulkSelectionIfQueryChanged();
         this._wireBulkCheckboxes();
         this._renderBulkBar();
+        this._syncReorder();
     }
 
     _resetBulkSelectionIfQueryChanged() {
@@ -2198,9 +2220,9 @@ export default class extends Controller {
         const filterRow = document.createElement('tr');
         filterRow.className = 'dt-filter-row';
 
-        // Match the exact column count DataTables renders: bulk checkbox
-        // (if enabled) → data columns → actions column.
-        if (this._bulkActions.length > 0) {
+        // Match the exact column count DataTables renders: reorder handle and bulk checkbox (if
+        // enabled) → data columns → actions column.
+        for (let index = 0; index < this._leadingColumns; index++) {
             filterRow.appendChild(document.createElement('th'));
         }
 
@@ -2752,6 +2774,21 @@ export default class extends Controller {
             });
         }
 
+        // The reorder handle, first of all (2.9). Its cell is drawn on every row; whether it can be
+        // used is decided after each draw (`_syncReorder()`), the same column staying in place so
+        // no index ever moves.
+        if (this._reorderEnabled) {
+            cols.unshift({
+                data: null,
+                title: `<span class="dt-sr">${this._escHtml(this.t('datatable.reorder.column'))}</span>`,
+                orderable: false,
+                searchable: false,
+                responsivePriority: 1,
+                className: 'dt-reorder-col',
+                render: (data, type, row) => this._reorderCell(row),
+            });
+        }
+
         if (this.actionsValue && this.actionsValue.length > 0) {
             cols.push({
                 data: null,
@@ -2764,6 +2801,158 @@ export default class extends Controller {
         }
 
         return cols;
+    }
+
+    // ── Row reordering (2.9) ──────────────────────────────────
+
+    /** Whether the page gave this table somewhere to save an order (`_reorder.html.twig`). */
+    get _reorderEnabled() {
+        return this.reorderUrlValue !== '' && this.reorderFieldValue !== '';
+    }
+
+    /**
+     * The handle of a row: a grip to drag (mouse, touch) and two buttons for the keyboard and the
+     * screen reader, which move the row one place and keep the focus on the button pressed.
+     */
+    _reorderCell(row) {
+        const id = this._escAttr(String(row.id));
+        const up = this._escAttr(this.t('datatable.reorder.up'));
+        const down = this._escAttr(this.t('datatable.reorder.down'));
+
+        return `<span class="dt-reorder">
+            <span class="dt-reorder__grip" aria-hidden="true"><i class="fa-solid fa-grip-vertical"></i></span>
+            <button type="button" class="dt-reorder__move" data-reorder-move="-1" data-id="${id}" aria-label="${up}" title="${up}"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></button>
+            <button type="button" class="dt-reorder__move" data-reorder-move="1" data-id="${id}" aria-label="${down}" title="${down}"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button>
+        </span>`;
+    }
+
+    _wireReorder() {
+        if (!this._reorderEnabled) {
+            return;
+        }
+
+        // The announcement of a move, read by screen readers: next to the table, created once.
+        if (!this._reorderLive) {
+            this._reorderLive = document.createElement('p');
+            this._reorderLive.className = 'dt-sr';
+            this._reorderLive.setAttribute('aria-live', 'polite');
+            this.element.after(this._reorderLive);
+        }
+
+        this.dataTable.on('row-reorder', (event, diff, edit) => {
+            if (!this._reorderable || diff.length === 0) {
+                return;
+            }
+
+            const ids = this._displayedIds();
+            const next = [...ids];
+            diff.forEach((change) => {
+                next[change.newPosition] = ids[change.oldPosition];
+            });
+
+            this._saveOrder(next, edit?.triggerRow?.data()?.id);
+        });
+
+        if (!this._onReorderClick) {
+            this._onReorderClick = (event) => {
+                const button = event.target.closest('[data-reorder-move]');
+
+                if (!button || !this._reorderable) {
+                    return;
+                }
+
+                event.preventDefault();
+                const step = Number(button.dataset.reorderMove);
+                const ids = this._displayedIds();
+                const from = ids.findIndex((id) => String(id) === button.dataset.id);
+                const to = from + step;
+
+                if (from < 0 || to < 0 || to >= ids.length) {
+                    return;
+                }
+
+                [ids[from], ids[to]] = [ids[to], ids[from]];
+                this._saveOrder(ids, ids[to], step);
+            };
+            this.element.addEventListener('click', this._onReorderClick);
+        }
+    }
+
+    /** The identifiers of the rows on screen, in their order. */
+    _displayedIds() {
+        return this.dataTable.rows({ order: 'current', page: 'current' }).data().toArray().map((row) => row.id);
+    }
+
+    /**
+     * ⚠️ The handle only works while the order on screen IS the stored order: sorted on the
+     * position, ascending, no search, no filter, every row on this one page. Dragging a row of a
+     * filtered or second page would write positions against rows nobody can see — the server
+     * would refuse it (409) anyway, as the list would not be every row.
+     */
+    _syncReorder() {
+        if (!this._reorderEnabled || !this.dataTable) {
+            return;
+        }
+
+        const [index, dir] = this.dataTable.order()[0] || [];
+        const column = this._columns[index - this._leadingColumns];
+        const info = this.dataTable.page.info();
+        const filtered = Object.values(this._activeFilters || {}).some((value) => value !== '' && value !== null && value !== undefined);
+
+        this._reorderable = Boolean(column)
+            && (column.sortField || column.data) === this.reorderFieldValue
+            && dir === 'asc'
+            && !this.dataTable.search()
+            && !filtered
+            && info.pages <= 1
+            && info.recordsDisplay === info.recordsTotal;
+
+        this.element.classList.toggle('is-reorderable', this._reorderable);
+
+        if (this.dataTable.rowReorder) {
+            this._reorderable ? this.dataTable.rowReorder.enable() : this.dataTable.rowReorder.disable();
+        }
+
+        // Back from a button move: the focus returns to the button pressed, on its row's new place.
+        if (this._reorderFocus) {
+            const { id, step } = this._reorderFocus;
+            this._reorderFocus = null;
+            const buttons = this.element.querySelectorAll(`[data-reorder-move][data-id="${CSS.escape(String(id))}"]`);
+            const pressed = [...buttons].find((button) => Number(button.dataset.reorderMove) === step);
+            (pressed && !pressed.disabled ? pressed : buttons[0])?.focus();
+        }
+    }
+
+    /** One call saves the whole order; the table then redraws from what the server holds. */
+    async _saveOrder(ids, movedId, step = null) {
+        let response;
+
+        try {
+            response = await fetch(this.reorderUrlValue, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.reorderCsrfValue },
+                body: JSON.stringify({ ids }),
+            });
+        } catch {
+            response = null;
+        }
+
+        if (response?.status === 204) {
+            const position = ids.findIndex((id) => String(id) === String(movedId)) + 1;
+            this._announce(this.t('datatable.reorder.moved', { '%position%': position, '%total%': ids.length }));
+            this._reorderFocus = step === null ? null : { id: movedId, step };
+        } else {
+            this._announce(response?.status === 409 ? this.t('datatable.reorder.conflict') : this.t('datatable.reorder.failed'));
+        }
+
+        this.dataTable.ajax.reload(null, false);
+    }
+
+    _announce(message) {
+        if (this._reorderLive) {
+            this._reorderLive.textContent = message;
+        }
     }
 
     // ── Request / Response ─────────────────────────────────────
@@ -2780,7 +2969,7 @@ export default class extends Controller {
             // doesn't exist in the column list — shift the index back so the
             // server receives the correct sort field.
             const columns = this._columns;
-            const dataIdx = orderCol.column - this._bulkOffset;
+            const dataIdx = orderCol.column - this._leadingColumns;
             if (dataIdx >= 0 && dataIdx < columns.length) {
                 const column = columns[dataIdx];
                 if (column && column.data) {
@@ -2865,7 +3054,7 @@ export default class extends Controller {
             // configured or the row has no id (eg. aggregation rows).
             nameLink: (data, type, row, meta) => {
                 if (type !== 'display') return data;
-                const dataIdx = meta.col - this._bulkOffset;
+                const dataIdx = meta.col - this._leadingColumns;
                 const col = this._columns[dataIdx];
                 const prefix = col?.linkPrefix || '';
                 const id = row[col?.linkIdField || 'id'];
@@ -2881,7 +3070,7 @@ export default class extends Controller {
                 // by 1 when the bulk checkbox column is prepended. Map it
                 // back to the effective column list to read the correct
                 // `resolveField`.
-                const dataIdx = meta.col - this._bulkOffset;
+                const dataIdx = meta.col - this._leadingColumns;
                 const field = this._columns[dataIdx]?.resolveField || 'name';
                 const cached = iriResolver.get(data);
                 if (cached) return cached[field] || '—';
@@ -3044,7 +3233,7 @@ export default class extends Controller {
                 if (data === null || data === undefined || data === '') return '—';
                 const n = Number(data);
                 if (!Number.isFinite(n)) return '—';
-                const col = this._columns[meta.col - this._bulkOffset];
+                const col = this._columns[meta.col - this._leadingColumns];
                 const suffix = row?.currency || col?.suffix || '';
                 const formatted = n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 return suffix ? `${formatted} ${suffix}` : formatted;
@@ -3658,7 +3847,7 @@ export default class extends Controller {
         // first table whose `resolveField` was something else: an asset column resolving `label`
         // showed a dash on mobile while the desktop table showed the value (wovex, ADR-0010).
         const all = this._columns;
-        const metaCol = (col) => ({ col: all.findIndex(c => c.data === col.data) + this._bulkOffset });
+        const metaCol = (col) => ({ col: all.findIndex(c => c.data === col.data) + this._leadingColumns });
 
         // Find the "primary" column (responsivePriority 1 or first column)
         const primaryCol = columns.find(c => c.responsivePriority === 1) || columns[0];

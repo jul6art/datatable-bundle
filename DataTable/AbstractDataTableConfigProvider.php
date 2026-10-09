@@ -81,6 +81,27 @@ abstract class AbstractDataTableConfigProvider
         return null;
     }
 
+    /**
+     * Rows the user reorders by hand (2.9): a handle per row, Up and Down buttons, one call that
+     * saves the whole order. `null` by default — overriding it, with {@see rootEntity()}, is what
+     * turns it on.
+     *
+     * ```php
+     * public function rowReorder(): ?RowReorder
+     * {
+     *     return new RowReorder('projects', 'position', 'project:reorder');
+     * }
+     * ```
+     *
+     * ⚠️ The handle shows only while the order on screen IS the stored order: sorted on the
+     * position, ascending, no search, no filter, and every row on one page. Dragging a row of a
+     * filtered or second page would write positions against rows the user cannot see.
+     */
+    public function rowReorder(): ?RowReorder
+    {
+        return null;
+    }
+
     // ── Columns ────────────────────────────────────────────────
 
     /** @return list<array<string, mixed>> */

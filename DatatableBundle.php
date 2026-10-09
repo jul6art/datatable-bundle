@@ -6,6 +6,7 @@ namespace Jul6Art\DatatableBundle;
 
 use Jul6Art\DatatableBundle\DependencyInjection\Compiler\DatatableExportPass;
 use Jul6Art\DatatableBundle\DependencyInjection\Compiler\PreferenceControllerPass;
+use Jul6Art\DatatableBundle\DependencyInjection\Compiler\ReorderControllerPass;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -41,6 +42,7 @@ class DatatableBundle extends Bundle
         // « inexistant » que plus personne ne réclame explicitement. La leçon est celle
         // d'`AppearanceControllerPass` dans `admin-bundle`, payée une fois.
         $container->addCompilerPass(new PreferenceControllerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 100);
+        $container->addCompilerPass(new ReorderControllerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 100);
 
         // ⚠️ `DatatableViewExporter` has no controller of its own for `RegisterControllerArgumentLocatorsPass`
         // to have already captured — a consumer's own controller calls it — so the priority-100

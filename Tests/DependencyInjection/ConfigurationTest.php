@@ -31,7 +31,7 @@ final class ConfigurationTest extends TestCase
             'enabled' => true,
             'translation_domain' => 'messages',
             'stimulus_identifier' => 'datatable',
-            'csrf' => ['single' => 'datatable_action', 'bulk' => 'bulk_action', 'preferences' => 'datatable_preferences'],
+            'csrf' => ['single' => 'datatable_action', 'bulk' => 'bulk_action', 'preferences' => 'datatable_preferences', 'reorder' => 'datatable_reorder'],
             'status_maps' => [],
             'tenant' => [
                 // Vide à dessein : une application mono-tenant ne déclare pas un endpoint qu'elle

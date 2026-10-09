@@ -612,6 +612,88 @@ origin. Nothing to configure beyond the URL.
 layouts, or the other way around; each partial keys off its own value, and either can be included
 without the other.
 
+Reordering rows (since 2.9.0)
+-----------------------------
+
+For a list whose order is the user's to decide — the street of a portfolio, the steps of a
+checklist: a handle per row to drag, **Up** and **Down** buttons for the keyboard and screen
+readers, and ONE call that saves the whole order.
+
+### 1. Declare it on the config provider
+
+```php
+public function rootEntity(): ?string
+{
+    return Project::class;
+}
+
+public function rowReorder(): ?RowReorder
+{
+    // the key in the URL, the integer position field, the permission that guards the write
+    return new RowReorder('projects', 'position', 'project:reorder');
+}
+```
+
+The provider must declare a column on that field (it may be hidden) and the collection must expose
+it: the handle only works while the table is sorted on it.
+
+### 2. Import the route
+
+```yaml
+# config/routes/datatable.yaml
+datatable_reorder:
+    resource: '@DatatableBundle/Controller/DatatableReorderController.php'
+    type: attribute
+    prefix: /admin/datatable
+```
+
+It needs Doctrine ORM and SecurityBundle; without them it removes itself.
+
+### 3. Opt the table in, and load the extension
+
+```twig
+<table data-controller="{{ datatable_stimulus() }}"
+       {{ include('@Datatable/datatable/_reorder.html.twig', { key: 'projects', field: 'position' }) }}
+       …>
+```
+
+```js
+// assets/app.js — dragging, mouse and touch (the buttons work without it)
+import 'datatables.net-rowreorder-dt';
+```
+
+### What the endpoint does
+
+`POST …/{key}/reorder` with `{"ids": [3, 1, 2]}` — every row, in the new order:
+
+1. a key no provider declares answers **404**;
+2. the provider's permission, through `isGranted()` — **403** (reordering writes every row: reading
+   the list is not enough);
+3. the CSRF token in `X-CSRF-Token` (`datatable.csrf.reorder`, default `datatable_reorder`) — **403**;
+4. the identifiers must be **exactly the set of rows**, each once — otherwise the page went stale,
+   **409**, nothing is written and the table reloads;
+5. one transaction, **through the ORM**: one query reads the rows, the flush writes the moved ones —
+   so the application's listeners (a cache to ban, Mercure) see the change. A bulk `UPDATE` would
+   not.
+
+> ⚠️ **The handle shows only while the order on screen IS the stored order**: sorted on the
+> position, ascending, no search, no filter, every row on one page. Dragging a row of a filtered or
+> second page would write positions against rows the user cannot see.
+
+### Keys to translate
+
+```yaml
+# translations/javascript.<locale>.yaml
+datatable:
+    reorder:
+        column: 'Ordre'
+        up: 'Monter'
+        down: 'Descendre'
+        moved: 'Déplacé en position %position% sur %total%.'
+        conflict: 'La liste a changé entre-temps : elle a été rechargée.'
+        failed: "L'ordre n'a pas pu être enregistré."
+```
+
 Live refresh
 ------------
 

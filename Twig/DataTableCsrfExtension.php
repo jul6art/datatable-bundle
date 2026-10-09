@@ -37,6 +37,7 @@ final readonly class DataTableCsrfExtension
         private string $singleTokenId = 'datatable_action',
         private string $bulkTokenId = 'bulk_action',
         private string $preferencesTokenId = 'datatable_preferences',
+        private string $reorderTokenId = 'datatable_reorder',
         private string $translationDomain = 'messages',
     ) {
     }
@@ -62,7 +63,8 @@ final readonly class DataTableCsrfExtension
 
     /**
      * @param string $kind `single` for the per-row POST actions, `bulk` for the /bulk-* endpoints,
-     *                     `preferences` for the per-user preferences endpoint
+     *                     `preferences` for the per-user preferences endpoint, `reorder` for the
+     *                     row reorder endpoint (2.9)
      *
      * @throws \InvalidArgumentException on anything else, rather than returning a token id nobody
      *                                   validates
@@ -74,7 +76,8 @@ final readonly class DataTableCsrfExtension
             'single' => $this->singleTokenId,
             'bulk' => $this->bulkTokenId,
             'preferences' => $this->preferencesTokenId,
-            default => throw new \InvalidArgumentException(\sprintf('Unknown datatable CSRF token kind "%s". Expected "single", "bulk" or "preferences".', $kind)),
+            'reorder' => $this->reorderTokenId,
+            default => throw new \InvalidArgumentException(\sprintf('Unknown datatable CSRF token kind "%s". Expected "single", "bulk", "preferences" or "reorder".', $kind)),
         };
     }
 }

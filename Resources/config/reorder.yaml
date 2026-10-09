@@ -1,0 +1,24 @@
+# Chargé quand Doctrine ORM, Routing et l'interface du vérificateur d'autorisations sont présents
+# (2.9). Le `ReorderControllerPass` affine ensuite : sans gestionnaire d'entités ni vérificateur
+# (SecurityBundle), le point d'entrée disparaît plutôt que de casser la compilation.
+services:
+    _defaults:
+        autowire: true
+
+    Jul6Art\DatatableBundle\Reorder\RowReorderer: ~
+
+    Jul6Art\DatatableBundle\Reorder\RowReorderRegistry:
+        arguments:
+            $providers: !tagged_iterator datatable.config_provider
+
+    # ⚠️ `autoconfigure: false`, comme le contrôleur des préférences : sinon le loader
+    # `routing.controllers` importerait la route SANS le préfixe que l'application a choisi.
+    Jul6Art\DatatableBundle\Controller\DatatableReorderController:
+        autoconfigure: false
+        arguments:
+            $authorizationChecker: '@security.authorization_checker'
+            # Posés par l'extension : le gestionnaire CSRF est une référence tolérante à l'absence
+            # (`symfony/security-csrf` est un `suggest`), l'identifiant du jeton une configuration.
+            $csrfTokenManager: null
+            $csrfTokenId: 'datatable_reorder'
+        tags: ['controller.service_arguments']

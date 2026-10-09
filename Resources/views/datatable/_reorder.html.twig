@@ -1,0 +1,15 @@
+{#
+    Le réordonnancement des lignes d'UN tableau (2.9) — une poignée par ligne, les boutons Monter et
+    Descendre, un appel qui enregistre tout l'ordre. À inclure DANS la balise `<table>`, avec la clé
+    que le fournisseur déclare (`RowReorder::$key`) et le champ de position :
+
+        <table data-controller="{{ datatable_stimulus() }}"
+               {{ include('@Datatable/datatable/_reorder.html.twig', { key: 'projects', field: 'position' }) }}
+               …>
+
+    ⚠️ La route doit être importée par le projet (`DatatableReorderController`) : `path()` lève
+    sinon, au premier rendu, plutôt qu'une poignée qui n'enregistre rien.
+#}
+data-{{ datatable_stimulus() }}-reorder-url-value="{{ path('datatable_reorder', { key: key }) }}"
+data-{{ datatable_stimulus() }}-reorder-csrf-value="{{ csrf_token(datatable_csrf_token_id('reorder')) }}"
+data-{{ datatable_stimulus() }}-reorder-field-value="{{ field }}"
