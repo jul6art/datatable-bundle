@@ -129,6 +129,7 @@ export default class extends Controller {
         }
 
         if (this.element.dataset.datatableInitialized) {
+            this._wireReorderClick();
             this._subscribeMercure();
             return;
         }
@@ -2853,29 +2854,44 @@ export default class extends Controller {
             this._saveOrder(next, edit?.triggerRow?.data()?.id);
         });
 
-        if (!this._onReorderClick) {
-            this._onReorderClick = (event) => {
-                const button = event.target.closest('[data-reorder-move]');
+        this._wireReorderClick();
+    }
 
-                if (!button || !this._reorderable) {
-                    return;
-                }
-
-                event.preventDefault();
-                const step = Number(button.dataset.reorderMove);
-                const ids = this._displayedIds();
-                const from = ids.findIndex((id) => String(id) === button.dataset.id);
-                const to = from + step;
-
-                if (from < 0 || to < 0 || to >= ids.length) {
-                    return;
-                }
-
-                [ids[from], ids[to]] = [ids[to], ids[from]];
-                this._saveOrder(ids, ids[to], step);
-            };
-            this.element.addEventListener('click', this._onReorderClick);
+    /**
+     * The Up and Down buttons, by delegation on the table.
+     *
+     * ⚠️ Wired again on every reconnect (2.9.1). Building the DataTable wraps the `<table>`, so
+     * Stimulus disconnects then reconnects this controller; `disconnect()` removes this listener,
+     * and the reconnect returns early on an initialised table. Wired only here, at the boot, the
+     * buttons rendered, took the focus and did nothing — while dragging kept working, RowReorder
+     * listening on its own.
+     */
+    _wireReorderClick() {
+        if (!this._reorderEnabled || this._onReorderClick) {
+            return;
         }
+
+        this._onReorderClick = (event) => {
+            const button = event.target.closest('[data-reorder-move]');
+
+            if (!button || !this._reorderable) {
+                return;
+            }
+
+            event.preventDefault();
+            const step = Number(button.dataset.reorderMove);
+            const ids = this._displayedIds();
+            const from = ids.findIndex((id) => String(id) === button.dataset.id);
+            const to = from + step;
+
+            if (from < 0 || to < 0 || to >= ids.length) {
+                return;
+            }
+
+            [ids[from], ids[to]] = [ids[to], ids[from]];
+            this._saveOrder(ids, ids[to], step);
+        };
+        this.element.addEventListener('click', this._onReorderClick);
     }
 
     /** The identifiers of the rows on screen, in their order. */
