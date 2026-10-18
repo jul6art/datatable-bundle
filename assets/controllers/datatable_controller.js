@@ -78,6 +78,10 @@ export default class extends Controller {
         // empty, `_rowSubject()` probes the usual label fields. Set it only when
         // the right label is not among them (rapport 2026-08-05 § P2).
         subjectField: { type: String, default: '' },
+        // The IRI prefix a Mercure event must carry to concern this table, when the collection lives
+        // at another address than its items: `/api/moderation/galleries` lists galleries whose IRI
+        // is `/api/galleries/{id}`. Empty = the collection's own address (`apiUrl`).
+        feedIri: { type: String, default: '' },
         // A search term to OPEN on, handed by the page (`?search=` of a "see all N results" link).
         // It wins over the remembered term on the first build only — see `initializeDataTable`.
         initialSearch: { type: String, default: '' },
@@ -1717,7 +1721,9 @@ export default class extends Controller {
         // matching — otherwise `/api/users/12`.startsWith(
         // `/api/users?organization=.../`) is false and every event is
         // dropped silently.
-        const baseApiUrl = this.apiUrlValue.split('?')[0];
+        // `feedIri` wins: a collection served at another address than its items (a moderation
+        // list, a second GetCollection) never matched — every event was dropped silently.
+        const baseApiUrl = (this.feedIriValue || this.apiUrlValue).split('?')[0];
         if (payload.iri && typeof payload.iri === 'string') {
             return payload.iri.startsWith(baseApiUrl + '/') || payload.iri === baseApiUrl;
         }

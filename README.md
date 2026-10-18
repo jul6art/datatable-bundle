@@ -711,6 +711,14 @@ Two meta tags drive it, rendered by the application's layout:
 <meta name="mercure-token-url" content="{{ path('app_mercure_token') }}">
 ```
 
+An event concerns a table when its IRI starts with the table's `apiUrl`. A collection served at
+another address than its items — a moderation list at `/api/moderation/galleries` whose rows are
+`/api/galleries/{id}` — names the prefix to match instead (2.10):
+
+```twig
+data-{{ dt }}-feed-iri-value="{{ path('_api_/galleries{._format}_get_collection') }}"
+```
+
 The token endpoint returns `{ token, subscribed: [...] }`, and `subscribed[]` is authoritative for
 both the JWT allow-list and the subscription list — so the topics are decided in one place instead
 of drifting between a template and a claim. `jul6art/push-bundle` mints the token
