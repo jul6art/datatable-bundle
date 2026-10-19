@@ -9,6 +9,105 @@
     @apply w-full;
 }
 
+/* ── Pending: the table before its first draw ────────── */
+
+/*
+ * The server renders a bare `<thead>`, and everything below styles `table.dataTable` — a class
+ * DataTables adds when it builds the table. Until then the header row painted with the browser's
+ * defaults (bold, centred, no padding) in a panel forty pixels high, and stayed that way for as
+ * long as the script took to arrive and the preferences to be fetched: five seconds on a 3G link,
+ * measured on devinthehood. Reported by jul6art on 2026-10-20.
+ *
+ * `_csrf.html.twig`, the one partial every table includes, marks the `<table>` with
+ * `data-datatable-pending`; the controller removes it at the first draw, or the first failed
+ * request. While it is there the table is invisible, and the element the controller would block
+ * — the enclosing `.panel`, else the table itself, the choice `block()` makes — wears a CSS-only
+ * copy of the blockUI overlay: the backdrop in `::before`, the three bouncing dots in `::after`,
+ * on screen before any script is. The controller does not block during that first load, so the
+ * page shows ONE loader from the first paint to the first row, not a hand-over between two.
+ *
+ * - `:has()` and `:not(<complex>)`, as the flush-panel rule of admin-bundle already uses them.
+ * - Plain CSS: a utility written here only exists in the consumer's build if its scanner read
+ *   this file. The values are those of `blockui.css`: `bg-white/60`, `dark:bg-slate-900/60`,
+ *   `backdrop-blur-[2px]`, `z-[100]`, dots of `w-2.5` in `bg-accent-500`, `gap-1.5` apart.
+ * - The dots are three `box-shadow`s of one transparent element, each with its own spread (the
+ *   dot's size) and alpha (its opacity): `blockui-bounce` scales 0.4 → 1 → 0.4 over 0 / 40 / 80 %
+ *   of 1.4 s, and its three dots run it 0.32 s, 0.16 s and 0 s ahead. Folding the three phases
+ *   into one timeline gives the keyframes below, piecewise linear like the original, hence
+ *   `linear`: an easing on ten combined stops would make every dot pause at each of them.
+ * - `[class~="panel"]`, never `.panel`: admin-bundle writes `.form-panel { @apply panel; }`, and
+ *   Tailwind's `@apply` clones EVERY rule whose selector names the class — the fallback below came
+ *   out a second time as `:not(.form-panel table)`, true of any table inside a plain `.panel`, and
+ *   drew a second set of dots on the table under the panel's. The attribute form has the same
+ *   specificity and is invisible to `@apply`.
+ * - `11rem` is the height of the panel DataTables builds before its rows arrive (toolbar, header,
+ *   filter row, "loading" row): the loader stands where the table will, and the page does not
+ *   jump when it does.
+ *
+ * Guarded by `StylesheetTest::testTheTableWaitsBehindTheLoaderUntilItsFirstDraw`.
+ */
+table[data-datatable-pending]:not(.dataTable) {
+    visibility: hidden;
+}
+
+[class~="panel"]:has(table[data-datatable-pending]) {
+    position: relative;
+    min-height: 11rem;
+}
+
+table[data-datatable-pending]:not([class~="panel"] table) {
+    position: relative;
+    height: 11rem;
+}
+
+[class~="panel"]:has(table[data-datatable-pending])::before,
+[class~="panel"]:has(table[data-datatable-pending])::after,
+table[data-datatable-pending]:not([class~="panel"] table)::before,
+table[data-datatable-pending]:not([class~="panel"] table)::after {
+    content: '';
+    position: absolute;
+    z-index: 100;
+    visibility: visible;
+    pointer-events: all;
+}
+
+[class~="panel"]:has(table[data-datatable-pending])::before,
+table[data-datatable-pending]:not([class~="panel"] table)::before {
+    inset: 0;
+    border-radius: inherit;
+    background-color: rgb(255 255 255 / 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.dark [class~="panel"]:has(table[data-datatable-pending])::before,
+.dark table[data-datatable-pending]:not([class~="panel"] table)::before {
+    background-color: rgb(15 23 42 / 0.6);
+}
+
+[class~="panel"]:has(table[data-datatable-pending])::after,
+table[data-datatable-pending]:not([class~="panel"] table)::after {
+    top: 50%;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border-radius: 9999px;
+    animation: datatable-pending-bounce 1.4s linear infinite;
+}
+
+/* Left dot, middle dot, right dot: offset 0 spread / colour. Spread -3px is scale 0.4, 0 is 1. */
+@keyframes datatable-pending-bounce {
+    0%, 100% { box-shadow: -16px 0 0 -1.3px rgb(var(--accent-500) / 0.74), 0 0 0 -2.1px rgb(var(--accent-500) / 0.57), 16px 0 0 -3px rgb(var(--accent-500) / 0.4); }
+    17.1% { box-shadow: -16px 0 0 0 rgb(var(--accent-500) / 1), 0 0 0 -0.9px rgb(var(--accent-500) / 0.83), 16px 0 0 -1.7px rgb(var(--accent-500) / 0.66); }
+    28.6% { box-shadow: -16px 0 0 -0.9px rgb(var(--accent-500) / 0.83), 0 0 0 0 rgb(var(--accent-500) / 1), 16px 0 0 -0.9px rgb(var(--accent-500) / 0.83); }
+    40% { box-shadow: -16px 0 0 -1.7px rgb(var(--accent-500) / 0.66), 0 0 0 -0.9px rgb(var(--accent-500) / 0.83), 16px 0 0 0 rgb(var(--accent-500) / 1); }
+    57.1% { box-shadow: -16px 0 0 -3px rgb(var(--accent-500) / 0.4), 0 0 0 -2.1px rgb(var(--accent-500) / 0.57), 16px 0 0 -1.3px rgb(var(--accent-500) / 0.74); }
+    68.6% { box-shadow: -16px 0 0 -3px rgb(var(--accent-500) / 0.4), 0 0 0 -3px rgb(var(--accent-500) / 0.4), 16px 0 0 -2.1px rgb(var(--accent-500) / 0.57); }
+    77.1% { box-shadow: -16px 0 0 -3px rgb(var(--accent-500) / 0.4), 0 0 0 -3px rgb(var(--accent-500) / 0.4), 16px 0 0 -2.8px rgb(var(--accent-500) / 0.44); }
+    80% { box-shadow: -16px 0 0 -2.8px rgb(var(--accent-500) / 0.44), 0 0 0 -3px rgb(var(--accent-500) / 0.4), 16px 0 0 -3px rgb(var(--accent-500) / 0.4); }
+    88.6% { box-shadow: -16px 0 0 -2.1px rgb(var(--accent-500) / 0.57), 0 0 0 -3px rgb(var(--accent-500) / 0.4), 16px 0 0 -3px rgb(var(--accent-500) / 0.4); }
+}
+
 /* ── Layout rows (header / footer) ───────────────────── */
 
 .dt-layout-row {

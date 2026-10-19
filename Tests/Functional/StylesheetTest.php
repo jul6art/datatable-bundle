@@ -406,6 +406,41 @@ final class StylesheetTest extends TestCase
         self::assertStringContainsString('if (iris.size === 0 && !force) return;', $js);
     }
 
+    /**
+     * Le tableau attend derrière le chargeur jusqu'à son premier rendu.
+     *
+     * Le serveur rend un `<thead>` nu, et toute la feuille stylise `table.dataTable` — une classe
+     * que DataTables pose en construisant la table. Jusque-là, la ligne d'en-tête s'affichait avec
+     * les défauts du navigateur (gras, centré, sans marge) dans un panneau de quarante pixels, et le
+     * restait le temps que le script arrive et que les préférences soient lues : cinq secondes sous
+     * 3G, mesurées sur devinthehood le 2026-10-20. Trois pièces, et chacune manque en silence : sans
+     * le marqueur du partial, rien ne s'applique ; sans les règles, l'en-tête nu revient ; sans la
+     * garde du contrôleur, deux chargeurs se superposent au premier chargement.
+     */
+    public function testTheTableWaitsBehindTheLoaderUntilItsFirstDraw(): void
+    {
+        $partial = (string) file_get_contents(\dirname(__DIR__, 2).'/Resources/views/datatable/_csrf.html.twig');
+        $css = self::read('datatable.css');
+        $js = self::readAsset('controllers/datatable_controller.js');
+
+        // Le marqueur vient du seul partial que TOUT tableau inclut : aucun gabarit à reprendre.
+        self::assertMatchesRegularExpression('/^data-datatable-pending$/m', $partial);
+        // La table est invisible tant qu'elle n'est pas construite, et son panneau porte le chargeur.
+        self::assertStringContainsString('table[data-datatable-pending]:not(.dataTable)', $css);
+        self::assertStringContainsString('[class~="panel"]:has(table[data-datatable-pending])::after', $css);
+        // Sans `.panel`, le chargeur se pose sur la table — le même choix que `block()`.
+        self::assertStringContainsString('table[data-datatable-pending]:not([class~="panel"] table)::after', $css);
+        // Jamais `.panel` en toutes lettres : `.form-panel { @apply panel }` d'admin-bundle le ferait
+        // cloner par Tailwind, et le repli sortirait une seconde fois en `:not(.form-panel table)`.
+        self::assertStringNotContainsString('.panel:has(table[data-datatable-pending])', $css);
+        self::assertStringNotContainsString(':not(.panel table)', $css);
+        self::assertStringContainsString('@keyframes datatable-pending-bounce', $css);
+        // Le contrôleur ne bloque pas par-dessus le chargeur CSS, et lève le marqueur au premier rendu.
+        self::assertStringContainsString('if (!this._pending) {', $js);
+        self::assertStringContainsString('if (!this._blockId && !this._pending) {', $js);
+        self::assertStringContainsString("removeAttribute('data-datatable-pending')", $js);
+    }
+
     private static function read(string $name): string
     {
         return (string) file_get_contents(\dirname(__DIR__, 2).'/assets/styles/'.$name);

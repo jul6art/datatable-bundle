@@ -1,6 +1,6 @@
 {#
-    Les deux jetons CSRF d'un tableau — à inclure DANS la balise `<table>`, là où le contrôleur
-    Stimulus lit ses valeurs :
+    Les deux jetons CSRF d'un tableau, et son état d'attente — à inclure DANS la balise `<table>`,
+    là où le contrôleur Stimulus lit ses valeurs :
 
         <table data-controller="{{ datatable_stimulus() }}"
                {{ include('@Datatable/datatable/_csrf.html.twig') }}
@@ -16,6 +16,22 @@
     Le préfixe des attributs suit l'identifiant Stimulus, qui appartient à l'application : un
     partial qui l'écrirait en dur émettrait des attributs que le contrôleur ne lit pas, et un
     contrôleur Stimulus sans valeurs ne tombe pas en erreur — il rend un tableau vide.
+
+    ## `data-datatable-pending` — le tableau attend son premier rendu
+
+    Le serveur rend un `<thead>` nu, et la feuille du socle stylise `table.dataTable`, une classe
+    que DataTables pose en construisant la table. Entre le premier affichage et ce moment — le
+    temps que le script arrive et que les préférences soient lues, cinq secondes sous 3G —, la
+    ligne d'en-tête se peignait avec les défauts du navigateur (gras, centré, sans marge) dans un
+    panneau de quarante pixels. Signalé par jul6art le 2026-10-20.
+
+    Ce marqueur est lu par `datatable.css` : tant qu'il est là, la table est invisible et son
+    `.panel` (ou la table elle-même, sans panneau — le même choix que `block()`) porte une copie en
+    CSS seul du voile de blockUI, présente dès le premier affichage. Le contrôleur le retire au
+    premier rendu, et ne bloque pas le panneau d'ici là : un seul chargeur, du premier pixel à la
+    première ligne. Il vit ICI parce que ce partial est le seul que TOUT tableau inclut — aucun
+    gabarit à reprendre. Sans préfixe : ce n'est pas une valeur Stimulus, c'est un état du DOM.
 #}
 data-{{ datatable_stimulus() }}-bulk-csrf-value="{{ csrf_token(datatable_csrf_token_id('bulk')) }}"
 data-{{ datatable_stimulus() }}-single-csrf-value="{{ csrf_token(datatable_csrf_token_id('single')) }}"
+data-datatable-pending

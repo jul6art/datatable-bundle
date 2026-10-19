@@ -199,6 +199,19 @@ renders raw keys.
 `searchable-fields-value` is the list the global search hits through `OrSearchFilter`. It is not
 derived from the columns on purpose: a table often searches fields it does not display.
 
+**Until its first rows are drawn, the table is a loader** (since 2.12.0). The server renders a bare
+`<thead>`, and the stylesheet dresses `table.dataTable` — a class DataTables adds when it builds the
+table, that is once the script has arrived *and* the preferences have been fetched. In between, the
+header row used to paint with the browser's defaults (bold, centred, unpadded) in a forty-pixel
+panel: five seconds on a 3G link. `_csrf` now marks the `<table>` with `data-datatable-pending`;
+`datatable.css` hides it and paints a CSS-only copy of the blockUI overlay — same backdrop, same
+three dots — on the enclosing `.panel` (or on the table itself when there is none, the choice
+`block()` makes), from the first paint, before any script runs; the controller removes the mark at
+the first draw and does not block during that first load, so the page shows one loader from the
+first pixel to the first row. Nothing to write in a template: the mark travels with the partial
+every table already includes. The panel stands `11rem` high until the rows arrive, which is the
+height DataTables gives it before they do.
+
 A page can hand the table a term to **open on** — a header search's "see all 47 results" link lands
 on the list filtered by the same term:
 

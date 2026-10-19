@@ -36,6 +36,9 @@ import { evaluateCondition } from '../services/condition';
  *   (the autocomplete of an API filter). All three ship with this bundle; register them under
  *   those identifiers.
  * - the badge renderers of its own domain, through `registerRenderers()` — see `../renderers`.
+ * - the attributes of `_csrf.html.twig` inside the `<table>` tag. Besides the two tokens they mark
+ *   the table as pending its first draw, and the stylesheet shows a loader where it will stand
+ *   until then — see `_pending`.
  *
  * ## Filters
  *
@@ -1359,8 +1362,12 @@ export default class extends Controller {
      *        `resetPage` is for the one rebuild that IS a new query: applying a saved view.
      */
     initializeDataTable({ rebuild = false, sort = null, resetPage = false } = {}) {
-        const panel = this.element.closest('.panel');
-        this._blockId = this.block(panel || this.element);
+        // Not on the first build: the page arrived with the CSS-only loader of the pending state
+        // already on screen, and a second overlay on top of it would double the dots. See `_pending`.
+        if (!this._pending) {
+            const panel = this.element.closest('.panel');
+            this._blockId = this.block(panel || this.element);
+        }
 
         const saved = this._loadState();
 
@@ -1416,6 +1423,7 @@ export default class extends Controller {
                 dataSrc: (json) => this.transformResponse(json),
                 error: (xhr, error, code) => this.handleError(xhr, error, code),
                 complete: () => {
+                    this._settle();
                     if (this._blockId) {
                         this.unblock(this._blockId);
                         this._blockId = null;
@@ -1517,14 +1525,37 @@ export default class extends Controller {
         window.addEventListener('resize', this._onWindowResize);
     }
 
+    /**
+     * True until the first draw, or the first failed request: the `<table>` still carries the
+     * `data-datatable-pending` attribute `_csrf.html.twig` wrote.
+     *
+     * The server renders a bare `<thead>`, and the stylesheet dresses `table.dataTable` — a class
+     * that only exists once the table is built, that is after this script has arrived AND the
+     * preferences have been fetched. In between, the header row painted with the browser's defaults
+     * in a forty-pixel panel: five seconds on a 3G link. While the mark is there, `datatable.css`
+     * hides the table and paints a CSS-only copy of the blockUI overlay on its panel, from the first
+     * paint; so the first load does not block here — the loader is already on screen, and a second
+     * one would double the dots — and `_settle()` hands the screen over by removing the mark.
+     * Every later draw blocks as before. Reported by jul6art on 2026-10-20.
+     */
+    get _pending() {
+        return this.element.hasAttribute('data-datatable-pending');
+    }
+
+    /** From the CSS-only loader to the table. Idempotent: called on every draw and every response. */
+    _settle() {
+        this.element.removeAttribute('data-datatable-pending');
+    }
+
     onPreDraw() {
-        if (!this._blockId) {
+        if (!this._blockId && !this._pending) {
             const panel = this.element.closest('.panel');
             this._blockId = this.block(panel || this.element);
         }
     }
 
     onDraw() {
+        this._settle();
         if (this._blockId) {
             this.unblock(this._blockId);
             this._blockId = null;
