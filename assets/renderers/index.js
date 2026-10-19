@@ -104,6 +104,8 @@ export function badge(labelPath, palette) {
         const classes = PALETTES[palette[key]] ?? PALETTES.slate;
         const label = c.t(`${labelPath}.${key}`);
 
-        return `<span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${classes}">${label}</span>`;
+        // `whitespace-nowrap`: a two-word label (« Au marché », « Partially filled ») broke in two
+        // lines inside a narrow column, and the pill with it (seen in production, 2026-10-19).
+        return `<span class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${classes}">${label}</span>`;
     };
 }

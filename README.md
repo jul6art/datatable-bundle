@@ -258,6 +258,10 @@ The controller ships twenty-one generic renderers: `statusBadge`, `activeBadge`,
 > which one you are reading. A `03/04/26` is unreadable without knowing the locale that produced
 > it. The time part is still converted to the reader's timezone; only the layout is fixed.
 
+> **A badge never wraps** (since 2.11.1): `badge()` renders its pill `whitespace-nowrap`, so a two-word
+> label in a narrow column (« Au marché », « Partially filled ») stays on one line instead of breaking
+> the pill in two. A long label widens the column; it does not fold.
+
 Everything with business vocabulary in it is yours:
 
 ```js
