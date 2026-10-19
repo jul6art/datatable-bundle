@@ -448,20 +448,39 @@ final class StylesheetTest extends TestCase
     }
 
     /**
-     * Le menu d'actions par ligne appelle `window._toggleDtDropdown` dans son markup inline. Le
-     * bundle qui rend ce markup DOIT fournir la fonction : sans elle, le bouton ⋮ s'affiche et ne
-     * fait rien — pas d'erreur, pas d'indice, une liste qui semble n'avoir aucune action
+     * Le bouton ⋮ du menu d'actions par ligne est marqué `data-dt-dropdown-toggle`, et c'est le
+     * bundle qui rend ce markup qui DOIT écouter le clic : sans l'écouteur, le bouton s'affiche et
+     * ne fait rien — pas d'erreur, pas d'indice, une liste qui semble n'avoir aucune action
      * (signalé sur wovex le 2026-08-23 ; la fonction n'existait que dans le `app.js` de superp).
+     *
+     * ⚠️ Jamais `onclick="…"` : un gestionnaire inline n'a pas de nonce, une CSP le refuse, et le
+     * menu ne s'ouvre plus le jour où elle s'applique (2.11).
      */
     public function testTheActionsDropdownShipsItsBehaviour(): void
     {
         $controller = self::readAsset('controllers/datatable_controller.js');
         $service = self::readAsset('services/dropdown.js');
 
-        self::assertStringContainsString('window._toggleDtDropdown(this)', $controller, 'Le markup appelle la fonction…');
-        self::assertStringContainsString('installActionsDropdown()', $controller, '…et le contrôleur doit l\'installer.');
+        self::assertStringContainsString('data-dt-dropdown-toggle', $controller, 'Le markup marque le bouton…');
+        self::assertStringContainsString('installActionsDropdown()', $controller, '…et le contrôleur doit installer l\'écouteur.');
+        self::assertStringContainsString("closest('[data-dt-dropdown-toggle]')", $service);
         self::assertStringContainsString('window._toggleDtDropdown =', $service);
         self::assertStringContainsString('_positionDtDropdown', $service);
+        self::assertDoesNotMatchRegularExpression('/\son[a-z]+="/', $controller, 'Un gestionnaire inline : la CSP le refuse.');
+    }
+
+    /**
+     * La `condition` d'une action se lit par `services/condition.js`, jamais par `new Function` :
+     * une CSP sans `'unsafe-eval'` le refusait sur chaque ligne, et cacherait toute action
+     * conditionnelle une fois appliquée (2.11).
+     */
+    public function testAConditionIsReadWithoutEval(): void
+    {
+        $controller = self::readAsset('controllers/datatable_controller.js');
+
+        self::assertStringContainsString("import { evaluateCondition } from '../services/condition';", $controller);
+        self::assertStringNotContainsString('new Function(', $controller);
+        self::assertStringNotContainsString('eval(', $controller);
     }
 
     /**

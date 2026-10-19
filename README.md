@@ -153,6 +153,16 @@ final class UserDataTableConfigProvider extends AbstractDataTableConfigProvider
 > other name renders the `fa-circle-question` fallback — no error, a working button showing a
 > question mark. Add a missing name to the table rather than living with the fallback.
 
+> **An action's `condition` is a JavaScript expression, read without `eval`** (since 2.11).
+> `'condition' => '!row.deletedAt'` offers the action on a live row only; the expression reads
+> `row` and `user` (`window.currentUser`). Before 2.11 it ran through `new Function`, which a
+> Content-Security-Policy without `'unsafe-eval'` refuses — a violation per row, and every
+> conditional action gone once the policy is enforced. `services/condition.js` now reads the
+> subset the conditions use: literals and arrays, `row.a.b` and `row['x']`, `.includes(x)`,
+> `.some(x => …)`, `.every(x => …)`, `!`, comparisons, `&&`, `||` and parentheses. An expression
+> outside it still runs through `new Function`, with a console warning naming it: rewrite it
+> inside the subset, or the policy refuses it.
+
 > ⚠️ **`dateRangeFilter`'s `granularity` is not cosmetic.** `'date'` (the default) sends the civil
 > date as picked, for a `date_immutable` column. `'datetime'` converts it to a UTC instant, for a
 > `datetime` column. Getting it wrong shifts every result by one day for every user whose browser

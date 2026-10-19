@@ -1,10 +1,14 @@
 /**
  * The behaviour behind the per-row actions dropdown.
  *
- * ⚠️ The markup rendered by `_renderActionsDropdown()` calls `window._toggleDtDropdown(this)`
- * inline. Shipping that markup without the function made the menu button render and do NOTHING
- * when clicked — no error, no hint, just a dead ⋮ button. The two belong together, so the
- * controller installs this on connect.
+ * ⚠️ The markup rendered by `_renderActionsDropdown()` marks its ⋮ button `data-dt-dropdown-toggle`,
+ * and the click is caught here, by delegation on the document. Shipping that markup without this
+ * listener made the button render and do NOTHING when clicked — no error, no hint, just a dead ⋮
+ * button. The two belong together, so the controller installs this on connect.
+ *
+ * The button used to call `window._toggleDtDropdown(this)` from an `onclick` attribute: an inline
+ * handler has no nonce, and a Content-Security-Policy refuses it. The function stays on `window`
+ * for code that calls it by name.
  *
  * The menu is positioned `fixed` on purpose: a table cell is inside `overflow: hidden`, and an
  * absolutely positioned menu would be clipped by it. Fixed means the position has to be
@@ -68,6 +72,12 @@ export function installActionsDropdown() {
     };
 
     document.addEventListener('click', (event) => {
+        const toggle = event.target.closest('[data-dt-dropdown-toggle]');
+        if (toggle) {
+            window._toggleDtDropdown(toggle);
+            return;
+        }
+
         if (!event.target.closest('.dt-dropdown')) {
             document.querySelectorAll('.dt-dropdown-menu').forEach(m => m.classList.add('hidden'));
         }

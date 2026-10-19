@@ -7,6 +7,7 @@ import { getRegisteredRenderers } from '../renderers';
 import { select2Language } from '../select2-language';
 import { ajaxQuery, resolveOrderKey } from '../select2-config';
 import { installActionsDropdown } from '../services/dropdown';
+import { evaluateCondition } from '../services/condition';
 
 /**
  * The server-driven table: pagination, sorting, search, filters, per-row and bulk actions, live
@@ -93,8 +94,8 @@ export default class extends Controller {
     };
 
     connect() {
-        // Le markup des actions en menu appelle `window._toggleDtDropdown` : la fonction est
-        // installée ici, sinon le bouton ⋮ rend et ne fait rien.
+        // Le bouton ⋮ du menu d'actions (`data-dt-dropdown-toggle`) est écouté par délégation :
+        // l'écouteur est installé ici, sinon le bouton rend et ne fait rien.
         installActionsDropdown();
         useTranslatable(this);
         useBlockable(this);
@@ -3661,7 +3662,7 @@ export default class extends Controller {
 
         return `
             <div class="relative dt-dropdown" data-id="${id}">
-                <button type="button" class="action-btn text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300" onclick="window._toggleDtDropdown(this)">
+                <button type="button" class="action-btn text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300" data-dt-dropdown-toggle>
                     <i class="fa-solid fa-ellipsis-vertical"></i>
                 </button>
                 <div class="dt-dropdown-menu hidden fixed w-48 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl py-1 overflow-hidden" style="z-index: 9;">
@@ -3755,10 +3756,11 @@ export default class extends Controller {
         return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     }
 
+    // Read by `services/condition`, never by `new Function`: a CSP without 'unsafe-eval' refused
+    // that on every row, and would hide every conditional action once enforced.
     evaluateCondition(condition, row) {
         try {
-            const context = { row, user: window.currentUser || {} };
-            return new Function('context', `with(context) { return ${condition}; }`)(context);
+            return evaluateCondition(condition, { row, user: window.currentUser || {} });
         } catch (e) {
             console.warn('[DataTable] Condition evaluation error:', condition, e);
             return false;
