@@ -74,6 +74,18 @@ final class StylesheetTest extends TestCase
         self::assertMatchesRegularExpression('/\.dt-search label\s*\{\s*@apply sr-only;\s*\}/', $css);
     }
 
+    /**
+     * On a phone the « Columns » / « Views » / export buttons show their icon only: the label, their
+     * only name, is hidden to the eye and kept for assistive technology (axe `button-name`, critical,
+     * at 390 px). An `aria-label` would not do: the views button shows the name of the view on screen.
+     */
+    public function testThePreferenceButtonsKeepTheirNameOnAPhone(): void
+    {
+        $css = self::read('datatable.css');
+
+        self::assertMatchesRegularExpression('/\.dt-prefs-btn-label\s*\{\s*@apply sr-only sm:not-sr-only sm:inline;\s*\}/', $css);
+    }
+
     public function testThePreferencePanelsSitAboveTheFilterDropdowns(): void
     {
         $css = self::read('datatable.css');

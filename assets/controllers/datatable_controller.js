@@ -894,7 +894,7 @@ export default class extends Controller {
         const link = document.createElement('a');
         link.className = 'dt-prefs-btn';
         link.rel = 'noopener';
-        link.innerHTML = `<i class="fa-solid fa-file-arrow-down"></i><span class="dt-prefs-btn-label">${this._escHtml(this.t('datatable.export.button'))}</span>`;
+        link.innerHTML = `<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><span class="dt-prefs-btn-label">${this._escHtml(this.t('datatable.export.button'))}</span>`;
 
         wrapper.appendChild(link);
         group.appendChild(wrapper);
@@ -953,7 +953,7 @@ export default class extends Controller {
         button.className = 'dt-prefs-btn';
         button.setAttribute('aria-expanded', 'false');
         button.setAttribute('aria-haspopup', 'dialog');
-        button.innerHTML = `<i class="fa-solid ${icon}"></i><span class="dt-prefs-btn-label">${this._escHtml(this.t(labelKey))}</span>`;
+        button.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i><span class="dt-prefs-btn-label">${this._escHtml(this.t(labelKey))}</span>`;
         button.addEventListener('click', () => this._togglePanel(kind));
 
         const panel = document.createElement('div');
@@ -3691,10 +3691,13 @@ export default class extends Controller {
                     </a>`;
         });
 
+        // An icon alone: the ⋮ names itself and says it opens a menu (axe `button-name`, critical).
+        const label = this._escHtml(this._orEnglish(this.t('datatable.actions'), 'Actions'));
+
         return `
             <div class="relative dt-dropdown" data-id="${id}">
-                <button type="button" class="action-btn text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300" data-dt-dropdown-toggle>
-                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                <button type="button" class="action-btn text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300" data-dt-dropdown-toggle aria-label="${label}" aria-haspopup="menu">
+                    <i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i>
                 </button>
                 <div class="dt-dropdown-menu hidden fixed w-48 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl py-1 overflow-hidden" style="z-index: 9;">
                     ${menuItems.join('')}
