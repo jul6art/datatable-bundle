@@ -148,8 +148,10 @@ table[data-datatable-pending]:not([class~="panel"] table)::after {
     @apply flex items-center gap-2;
 }
 
+/* Hidden to the eye, read by assistive technology: `hidden` (display: none) took the field's only
+ * name away (axe `label`, serious). */
 .dt-search label {
-    @apply hidden;
+    @apply sr-only;
 }
 
 .dt-search input {

@@ -63,6 +63,17 @@ final class StylesheetTest extends TestCase
      * JavaScript, et dont rien ne dit qu'ils sont là sans navigateur. Ce test fige les deux
      * réglages qui les rendent utilisables — et qui sont invisibles à la lecture du code.
      */
+    /**
+     * The label DataTables draws before its search field is the field's only name: hidden with
+     * `display: none`, it named nothing (axe `label`, serious, on every table). Hidden to the eye only.
+     */
+    public function testTheSearchFieldKeepsItsLabelForAssistiveTechnology(): void
+    {
+        $css = self::read('datatable.css');
+
+        self::assertMatchesRegularExpression('/\.dt-search label\s*\{\s*@apply sr-only;\s*\}/', $css);
+    }
+
     public function testThePreferencePanelsSitAboveTheFilterDropdowns(): void
     {
         $css = self::read('datatable.css');
