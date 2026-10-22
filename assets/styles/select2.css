@@ -15,8 +15,9 @@
     @apply text-slate-900 dark:text-slate-100 leading-[36px] px-3 pr-14;
 }
 
+/* 4.5:1 at least: slate-400 on white read 2.6:1 (axe `color-contrast`, serious, on every filter). */
 .select2-container--default .select2-selection--single .select2-selection__placeholder {
-    @apply text-slate-400 dark:text-slate-500;
+    @apply text-slate-600 dark:text-slate-400;
 }
 
 .select2-container--default .select2-selection--single .select2-selection__arrow {

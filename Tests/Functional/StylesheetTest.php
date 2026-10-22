@@ -86,6 +86,17 @@ final class StylesheetTest extends TestCase
         self::assertMatchesRegularExpression('/\.dt-prefs-btn-label\s*\{\s*@apply sr-only sm:not-sr-only sm:inline;\s*\}/', $css);
     }
 
+    /**
+     * The placeholder of a Select2 filter and the EMPTY date-range filter read slate-400 on white —
+     * 2.6:1 (axe `color-contrast`, serious, on every table). slate-600 on white and slate-400 on
+     * slate-800 both pass 4.5:1.
+     */
+    public function testThePlaceholdersReachFourAndAHalfToOne(): void
+    {
+        self::assertMatchesRegularExpression('/select2-selection__placeholder\s*\{[^}]*@apply text-slate-600 dark:text-slate-400;/', self::read('select2.css'));
+        self::assertMatchesRegularExpression('/\.dt-filter-daterange__field\s*\{[^}]*\btext-slate-600 dark:text-slate-400\b/', self::read('datatable.css'));
+    }
+
     public function testThePreferencePanelsSitAboveTheFilterDropdowns(): void
     {
         $css = self::read('datatable.css');

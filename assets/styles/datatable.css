@@ -474,7 +474,7 @@ table.dataTable > tbody > tr.child span.dtr-data {
 }
 
 .dt-filter-daterange__field {
-    @apply h-[34px] w-full min-w-0 flex items-center gap-2 text-left text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg pl-2 pr-8 focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 transition-colors;
+    @apply h-[34px] w-full min-w-0 flex items-center gap-2 text-left text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg pl-2 pr-8 focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 transition-colors;
 }
 
 /* L'icône calendrier, à gauche dans le champ. */
