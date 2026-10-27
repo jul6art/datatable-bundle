@@ -8,6 +8,7 @@ import { select2Language } from '../select2-language';
 import { ajaxQuery, resolveOrderKey } from '../select2-config';
 import { installActionsDropdown } from '../services/dropdown';
 import { evaluateCondition } from '../services/condition';
+import { openPreviewSheet, closePreviewSheet } from '../services/preview-sheet';
 
 /**
  * The server-driven table: pagination, sorting, search, filters, per-row and bulk actions, live
@@ -194,6 +195,7 @@ export default class extends Controller {
             this._onReorderClick = null;
         }
         this._removePanelDismiss();
+        this._removePreview();
         this._unsubscribeMercure();
         if (this._prefsSaveTimer) {
             clearTimeout(this._prefsSaveTimer);
@@ -1445,6 +1447,7 @@ export default class extends Controller {
             initComplete: () => {
                 this._buildFilters();
                 this._buildStatusTabs();
+                this._installPreview();
                 this._buildPreferenceControls();
                 this._buildExportControl();
                 this._buildMobileFilterButton();
@@ -2036,6 +2039,51 @@ export default class extends Controller {
             'Accept': 'application/ld+json',
             ...(window.organizationSlug ? { 'X-ORGANIZATION': window.organizationSlug } : {}),
         };
+    }
+
+    // ── Row preview (2.13) ─────────────────────────────────────
+
+    /**
+     * A `previewAction` stays a link; a PLAIN click on it opens the preview panel instead. A middle
+     * click or a modifier key keeps the browser's behaviour — a new tab, a new window.
+     */
+    _installPreview() {
+        if (!(this.actionsValue || []).some(action => action.preview)) return;
+
+        // A rebuild (a column dragged, a view applied) replaces the DataTables container: the
+        // listener follows the new one.
+        const root = this.element.closest('.dt-container') || this.element;
+        if (this._onPreviewClick && this._previewRoot === root) return;
+        if (this._onPreviewClick) this._previewRoot?.removeEventListener('click', this._onPreviewClick);
+
+        this._previewRoot = root;
+        this._onPreviewClick ??= (event) => {
+            const link = event.target.closest('a[data-dt-preview]');
+            if (!link || event.defaultPrevented || 0 !== event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+            event.preventDefault();
+            document.querySelectorAll('.dt-dropdown-menu').forEach(menu => menu.classList.add('hidden'));
+            openPreviewSheet({
+                url: link.href,
+                trigger: link.closest('.dt-dropdown')?.querySelector('[data-dt-dropdown-toggle]') || link,
+                labels: {
+                    title: this._orEnglish(this.t('datatable.preview.title'), 'Preview'),
+                    close: this._orEnglish(this.t('datatable.preview.close'), 'Close'),
+                    open: this._orEnglish(this.t('datatable.preview.open'), 'Open'),
+                    error: this._orEnglish(this.t('datatable.preview.error'), 'The preview could not be loaded.'),
+                    loading: this._orEnglish(this.t('datatable.dt.loading'), 'Loading...'),
+                },
+            });
+        };
+        this._previewRoot.addEventListener('click', this._onPreviewClick);
+    }
+
+    _removePreview() {
+        if (!this._onPreviewClick) return;
+        this._previewRoot?.removeEventListener('click', this._onPreviewClick);
+        this._onPreviewClick = null;
+        this._previewRoot = null;
+        closePreviewSheet();
     }
 
     // ── Filters ────────────────────────────────────────────────
@@ -3786,7 +3834,7 @@ export default class extends Controller {
                         ${item.icon}
                     </button>`);
             }
-            return `<a href="${item.url}" class="${classes}"
+            return `<a href="${item.url}" class="${classes}"${item.preview ? ' data-dt-preview' : ''}
                        data-controller="ui--tooltip"
                        data-ui--tooltip-text-value="${item.label}"
                        title="${item.label}"
@@ -3809,7 +3857,7 @@ export default class extends Controller {
                         ${item.label}
                     </button>`);
             }
-            return `<a href="${item.url}" class="${classes}">
+            return `<a href="${item.url}" class="${classes}"${item.preview ? ' data-dt-preview' : ''}>
                         <span class="w-4 text-center">${item.icon}</span>
                         ${item.label}
                     </a>`;

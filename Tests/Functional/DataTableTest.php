@@ -124,6 +124,20 @@ final class DataTableTest extends AbstractFunctionalTestCase
         self::assertArrayNotHasKey('tabs', $filters[5], 'A static filter stays a select unless it asks for tabs.');
     }
 
+    /**
+     * A preview action is a link first (a new tab, no JavaScript): only the flag tells the table to
+     * open its panel on a plain click (2.13).
+     */
+    public function testAPreviewActionIsALinkThatAsksForAPreview(): void
+    {
+        $action = $this->provider()->showAction();
+
+        self::assertSame('/widgets/{id}', $action['route']);
+        self::assertSame('eye', $action['icon']);
+        self::assertTrue($action['preview']);
+        self::assertArrayNotHasKey('method', $action, 'A GET, never a form.');
+    }
+
     public function testABulkDeleteActionCarriesBothItsRoutes(): void
     {
         $action = $this->provider()->deleteAction();

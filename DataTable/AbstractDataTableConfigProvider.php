@@ -270,6 +270,23 @@ abstract class AbstractDataTableConfigProvider
     }
 
     /**
+     * A link to the record that opens a PREVIEW first (2.13): a plain click shows the page's
+     * summary in a panel on the right — the list, its page and its filters stay where they are —
+     * and the panel's « Open » goes to the page. It stays a real link: a middle click or a
+     * modifier key opens the page in a new tab, and without JavaScript it is the page.
+     *
+     * The panel shows the fetched page's `[data-preview]` element (the record page of
+     * jul6art/admin-bundle ≥ 1.35 marks its own), minus anything marked `[data-preview-exclude]`;
+     * a page without one shows its `<main>`.
+     *
+     * @return array<string, mixed>
+     */
+    protected function previewAction(string $type, string $route, string $labelKey, string $icon = 'eye', string $labelDomain = 'messages'): array
+    {
+        return $this->linkAction($type, $route, $icon, $labelKey, $labelDomain) + ['preview' => true];
+    }
+
+    /**
      * POST action with confirmation modal.
      *
      * @return array<string, mixed>

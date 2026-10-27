@@ -937,3 +937,73 @@ table.dataTable > tbody > tr.child span.dtr-data {
     display: none;
 }
 
+/* ── Row preview (2.13) ───────────────────────────── */
+
+/*
+ * The panel on the right of the list: full width on a phone, 28rem from `sm`. Under the mobile
+ * filter sheet (9998/9999), above everything a back office lays out.
+ */
+.dt-sheet-root {
+    position: fixed;
+    inset: 0;
+    z-index: 9997;
+}
+
+.dt-sheet-scrim {
+    @apply absolute inset-0 bg-slate-900/40;
+}
+
+.dt-sheet {
+    @apply absolute inset-y-0 right-0 flex w-full flex-col bg-white shadow-2xl dark:bg-slate-800 sm:w-[28rem] sm:max-w-[90vw] sm:border-l sm:border-slate-200 sm:dark:border-slate-700;
+    outline: none;
+    animation: dt-sheet-in 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dt-sheet {
+        animation: none;
+    }
+}
+
+@keyframes dt-sheet-in {
+    from {
+        transform: translateX(2rem);
+        opacity: 0;
+    }
+    to {
+        transform: none;
+        opacity: 1;
+    }
+}
+
+.dt-sheet-header {
+    @apply flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-700;
+}
+
+.dt-sheet-title {
+    @apply text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400;
+}
+
+.dt-sheet-close {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100;
+}
+
+.dt-sheet-body {
+    @apply flex-1 overflow-y-auto px-5 py-4;
+}
+
+.dt-sheet-loading {
+    @apply flex h-40 items-center justify-center gap-1.5;
+}
+
+.dt-sheet-error {
+    @apply text-sm text-red-700 dark:text-red-400;
+}
+
+.dt-sheet-footer {
+    @apply flex px-5 py-3 border-t border-slate-200 dark:border-slate-700;
+}
+
+.dt-sheet-open {
+    @apply w-full justify-center gap-2;
+}

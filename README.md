@@ -922,11 +922,12 @@ A filter's own `placeholder` still wins over `filter.all` and `filter.search`.
 never French. `HardCodedTextSourceTest` fails on any string the bundle's JavaScript draws as
 written.
 
-### Status tabs (since 2.13.0)
+### Status tabs and the row preview (since 2.13.0)
 
-One static filter per table can be drawn as a row of tabs above it — « All », then one tab per
-option, each with the number of rows it would show. Meant for the status of a listing, the one
-filter a reader wants to see the counts of before choosing:
+Two things a listing of records with a status asks for, both declared on the config provider.
+
+**Status tabs.** One static filter per table can be drawn as a row of tabs above it — « All », then
+one tab per option, each with the number of rows it would show:
 
 ```php
 $this->staticFilter('status', 'status', 'work_order.field.status', $options, 'work_order', tabs: true),
@@ -936,11 +937,37 @@ A tab writes the same filter the select would have written, so the remembered st
 views and the export follow it with nothing to add; the select itself leaves the header and the
 mobile sheet. Each tab counts under the search and the **other** filters — one request per tab
 asking for a single row, read for its total —, again only when that query changes: a page turn or a
-sort costs nothing. The row scrolls sideways on its own on a phone, never the page. « All » reuses
-`datatable.filter.all`: no new key to translate.
+sort costs nothing. The row scrolls sideways on its own on a phone, never the page.
 
 > ⚠️ **Each count is a request to the API.** A table with seven statuses sends eight requests when
 > its query changes. Behind a per-tenant API quota, count that against it before turning tabs on.
+
+**Row preview.** A link to the record that opens a panel on the right first:
+
+```php
+$this->previewAction('show', '/admin/work-orders/{id}', 'action.show'),   // icon: 'eye' by default
+```
+
+A plain click shows the page's summary — the list, its page and its filters stay where they are —
+and the panel's « Open » goes to the page. It stays a real link: a middle click or a modifier key
+opens a new tab, and without JavaScript it is the page. The panel shows the fetched page's
+`[data-preview]` element minus its `[data-preview-exclude]` regions (except what they mark
+`[data-preview-keep]`), its `<main>` when it has none, never its scripts; the Stimulus controllers in
+it connect as they would anywhere. The record page of jul6art/admin-bundle ≥ 1.35 marks its own:
+header and actions, alerts, figures, steps and column — not the breadcrumb, the tabs, the content.
+Escape, the backdrop or ✕ close it, and focus goes back to the row.
+
+New keys of the `javascript` domain — the tabs' « All » reuses `datatable.filter.all`, the panel's
+loader `datatable.dt.loading`:
+
+```yaml
+datatable:
+    preview:
+        title: 'Aperçu'                                   # the panel's heading
+        open: 'Ouvrir la fiche'                           # its link to the page
+        close: 'Fermer'                                   # the ✕ button's name
+        error: "L'aperçu n'a pas pu être chargé."         # a page that failed to load
+```
 
 Quality assurance
 -----------------

@@ -50,6 +50,14 @@ final class WidgetDataTableConfigProvider extends AbstractDataTableConfigProvide
     /**
      * @return array<string, mixed>
      */
+    public function showAction(): array
+    {
+        return $this->previewAction('show', '/widgets/{id}', 'widget.action.show', labelDomain: 'widget');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function deleteAction(): array
     {
         return $this->bulkDeleteAction('widget_delete', 'widget_bulk_delete');
