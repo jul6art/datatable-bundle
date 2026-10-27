@@ -922,6 +922,26 @@ A filter's own `placeholder` still wins over `filter.all` and `filter.search`.
 never French. `HardCodedTextSourceTest` fails on any string the bundle's JavaScript draws as
 written.
 
+### Status tabs (since 2.13.0)
+
+One static filter per table can be drawn as a row of tabs above it — « All », then one tab per
+option, each with the number of rows it would show. Meant for the status of a listing, the one
+filter a reader wants to see the counts of before choosing:
+
+```php
+$this->staticFilter('status', 'status', 'work_order.field.status', $options, 'work_order', tabs: true),
+```
+
+A tab writes the same filter the select would have written, so the remembered state, the saved
+views and the export follow it with nothing to add; the select itself leaves the header and the
+mobile sheet. Each tab counts under the search and the **other** filters — one request per tab
+asking for a single row, read for its total —, again only when that query changes: a page turn or a
+sort costs nothing. The row scrolls sideways on its own on a phone, never the page. « All » reuses
+`datatable.filter.all`: no new key to translate.
+
+> ⚠️ **Each count is a request to the API.** A table with seven statuses sends eight requests when
+> its query changes. Behind a per-tenant API quota, count that against it before turning tabs on.
+
 Quality assurance
 -----------------
 

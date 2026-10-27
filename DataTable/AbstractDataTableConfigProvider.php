@@ -162,11 +162,16 @@ abstract class AbstractDataTableConfigProvider
     /**
      * Static select filter (predefined options).
      *
+     * `$tabs` (2.13): the filter becomes a row of tabs above the table — « All » first, then one
+     * tab per option, each with the number of rows it would show under the current search and
+     * filters — instead of a select in the column's header. Meant for the STATUS of a listing: the
+     * one filter a reader wants to see the counts of before choosing. One per table.
+     *
      * @param list<array{value: string, label: string}> $options
      *
      * @return array<string, mixed>
      */
-    protected function staticFilter(string $column, string $param, string $placeholderKey, array $options, string $placeholderDomain = 'messages'): array
+    protected function staticFilter(string $column, string $param, string $placeholderKey, array $options, string $placeholderDomain = 'messages', bool $tabs = false): array
     {
         return [
             'column' => $column,
@@ -174,7 +179,7 @@ abstract class AbstractDataTableConfigProvider
             'param' => $param,
             'placeholder' => $this->t($placeholderKey, $placeholderDomain),
             'options' => $options,
-        ];
+        ] + ($tabs ? ['tabs' => true] : []);
     }
 
     /**

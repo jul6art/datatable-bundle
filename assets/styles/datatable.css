@@ -905,3 +905,35 @@ table.dataTable > tbody > tr.child span.dtr-data {
         font-size: 16px;
     }
 }
+
+/* ── Status tabs (2.13) ───────────────────────────── */
+
+/*
+ * One row above the table — « All », then one tab per status, each with its count. It scrolls
+ * sideways on its own when it does not fit, never the page; the pressed tab takes the accent.
+ */
+.dt-status-tabs {
+    @apply flex gap-1 overflow-x-auto pb-3 mb-3 border-b border-slate-200 dark:border-slate-700;
+    scrollbar-width: none;
+}
+
+.dt-status-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.dt-status-tab {
+    @apply inline-flex shrink-0 items-center gap-1.5 min-h-9 rounded-lg px-3 text-sm font-semibold whitespace-nowrap text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700;
+}
+
+.dt-status-tab[aria-pressed="true"] {
+    @apply bg-accent-50 text-accent-700 dark:bg-slate-700 dark:text-accent-300;
+}
+
+.dt-status-tab-count {
+    @apply text-xs font-semibold tabular-nums opacity-75;
+}
+
+.dt-status-tab-count:empty {
+    display: none;
+}
+

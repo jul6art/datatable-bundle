@@ -39,6 +39,11 @@ final class WidgetDataTableConfigProvider extends AbstractDataTableConfigProvide
             $this->dateRangeFilter('createdAt', 'createdAt', 'widget.filter.created', 'widget', granularity: 'datetime'),
             $this->apiFilter('category', 'category', 'widget.filter.category', '/api/categories'),
             $this->apiFilter('task', 'task', 'widget.filter.task', '/api/tasks', searchKey: 'search', dependsOn: 'category', dependsParam: 'category', orderKey: 'label'),
+            $this->staticFilter('status', 'status', 'widget.filter.status', [
+                ['value' => 'draft', 'label' => 'Draft'],
+                ['value' => 'sent', 'label' => 'Sent'],
+            ], 'widget', tabs: true),
+            $this->staticFilter('kind', 'kind', 'widget.filter.kind', [['value' => 'a', 'label' => 'A']], 'widget'),
         ];
     }
 

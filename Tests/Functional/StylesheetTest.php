@@ -343,7 +343,7 @@ final class StylesheetTest extends TestCase
         $js = self::readAsset('controllers/datatable_controller.js');
 
         self::assertStringContainsString(
-            'if (!allColumns.some(col => this.filtersValue.some(filter => filter.column === col.data))) {',
+            'if (!allColumns.some(col => this.filtersValue.some(filter => filter.column === col.data && !filter.tabs))) {',
             $js,
         );
         // La garde vient AVANT la création du `<tr>` : la construire puis la jeter laisserait le

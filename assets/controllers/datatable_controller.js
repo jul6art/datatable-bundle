@@ -1413,12 +1413,7 @@ export default class extends Controller {
             ajax: {
                 url: this.apiUrlValue,
                 type: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${window.jwtToken}`,
-                    'Content-Type': 'application/ld+json',
-                    'Accept': 'application/ld+json',
-                    ...(window.organizationSlug ? { 'X-ORGANIZATION': window.organizationSlug } : {}),
-                },
+                headers: this._apiHeaders(),
                 data: (d) => this.transformRequestParams(d),
                 dataSrc: (json) => this.transformResponse(json),
                 error: (xhr, error, code) => this.handleError(xhr, error, code),
@@ -1449,6 +1444,7 @@ export default class extends Controller {
             },
             initComplete: () => {
                 this._buildFilters();
+                this._buildStatusTabs();
                 this._buildPreferenceControls();
                 this._buildExportControl();
                 this._buildMobileFilterButton();
@@ -1577,6 +1573,7 @@ export default class extends Controller {
         this._wireBulkCheckboxes();
         this._renderBulkBar();
         this._syncReorder();
+        this._refreshStatusTabCounts();
     }
 
     _resetBulkSelectionIfQueryChanged() {
@@ -1916,12 +1913,135 @@ export default class extends Controller {
                 $(select).val(value).trigger('change.select2');
             }
         });
+        this._syncStatusTabs();
+    }
+
+    // ── Status tabs (2.13) ─────────────────────────────────────
+
+    /** The static filter declared with `tabs`, if any — one per table. */
+    get _tabsFilter() {
+        return (this.filtersValue || []).find(filter => filter.tabs && 'static' === filter.type) || null;
+    }
+
+    get _statusTabs() {
+        return this._tabsFilter ? this.element.closest('.dt-container')?.querySelector('.dt-status-tabs') : null;
+    }
+
+    /** The filters of the mobile sheet that are set — the tabs, on screen at every width, aside. */
+    _sheetFilterCount() {
+        const tabsParam = this._tabsFilter?.param;
+
+        return Object.keys(this._activeFilters).filter(param => param !== tabsParam).length;
+    }
+
+    /**
+     * The status filter as a row of tabs above the table: « All », then one tab per option, each
+     * with the number of rows it would show. A tab writes the same `_activeFilters` entry the
+     * select would have, so the remembered state, the saved views and the export read it with
+     * nothing to add.
+     */
+    _buildStatusTabs() {
+        const config = this._tabsFilter;
+        const container = this.element.closest('.dt-container');
+        if (!config || !container || container.querySelector('.dt-status-tabs')) return;
+
+        const tabs = [{ value: '', label: this._orEnglish(this.t('datatable.filter.all'), 'All') }, ...(config.options || [])];
+        const nav = document.createElement('div');
+        nav.className = 'dt-status-tabs';
+        nav.setAttribute('role', 'group');
+        nav.setAttribute('aria-label', config.placeholder || '');
+        nav.innerHTML = tabs.map(tab => `
+            <button type="button" class="dt-status-tab" data-dt-tab-value="${this._escAttr(tab.value)}" aria-pressed="false">
+                <span>${this._escHtml(tab.label)}</span>
+                <span class="dt-status-tab-count"></span>
+            </button>`).join('');
+        nav.addEventListener('click', (event) => {
+            const button = event.target.closest('.dt-status-tab');
+            if (!button || !this.dataTable) return;
+
+            const value = button.dataset.dtTabValue;
+            if (value) {
+                this._activeFilters[config.param] = value;
+            } else {
+                delete this._activeFilters[config.param];
+            }
+            this._clearDependentFilters(config.param, this.element);
+            this._syncStatusTabs();
+            this.dataTable.ajax.reload();
+        });
+
+        container.insertBefore(nav, container.firstChild);
+        this._syncStatusTabs();
+        // The first draw comes BEFORE `initComplete`, where the tabs are born: nothing would count
+        // them until the next one. New tabs count now, even under an unchanged query (a rebuild).
+        this._tabCountsKey = null;
+        this._refreshStatusTabCounts();
+    }
+
+    _syncStatusTabs() {
+        const nav = this._statusTabs;
+        if (!nav) return;
+
+        const active = String(this._activeFilters[this._tabsFilter.param] ?? '');
+        nav.querySelectorAll('.dt-status-tab').forEach(button => {
+            button.setAttribute('aria-pressed', String(button.dataset.dtTabValue === active));
+        });
+    }
+
+    /**
+     * Each tab's count, under the search and the OTHER filters of the current query — the tab's own
+     * filter set to its value. One request per tab asking for a single row, read for its total.
+     *
+     * Fetched again only when that query changes: a page turn, a sort or a Mercure reload leaves
+     * the counts as they are, and costs nothing. A late answer of an older query is dropped.
+     */
+    _refreshStatusTabCounts() {
+        const nav = this._statusTabs;
+        if (!nav || !this._lastQuery) return;
+
+        const param = this._tabsFilter.param;
+        const base = Object.fromEntries(Object.entries(this._lastQuery)
+            .filter(([key]) => !['page', 'size', param].includes(key) && !key.startsWith('order[')));
+        const key = JSON.stringify(Object.keys(base).sort().map(name => [name, base[name]]));
+        if (key === this._tabCountsKey) return;
+        this._tabCountsKey = key;
+        const sequence = this._tabCountsSequence = (this._tabCountsSequence || 0) + 1;
+        const format = new Intl.NumberFormat(this.languageValue || undefined);
+
+        nav.querySelectorAll('.dt-status-tab').forEach(button => {
+            // `document.baseURI`, not `location.origin`: the origin of a sandboxed or `srcdoc`
+            // frame reads "null", and `new URL()` would throw in the middle of a draw.
+            const url = new URL(this.apiUrlValue, document.baseURI);
+            for (const [name, value] of Object.entries(base)) url.searchParams.set(name, value);
+            url.searchParams.set('page', '1');
+            url.searchParams.set('size', '1');
+            if (button.dataset.dtTabValue) url.searchParams.set(param, button.dataset.dtTabValue);
+
+            fetch(url, { headers: this._apiHeaders() })
+                .then(response => (response.ok ? response.json() : null))
+                .then(json => {
+                    if (!json || sequence !== this._tabCountsSequence) return;
+                    const total = json['hydra:totalItems'] ?? json.totalItems;
+                    if (Number.isFinite(total)) button.querySelector('.dt-status-tab-count').textContent = format.format(total);
+                })
+                .catch(() => {});
+        });
+    }
+
+    /** The headers of every request this table sends to the API. */
+    _apiHeaders() {
+        return {
+            'Authorization': `Bearer ${window.jwtToken}`,
+            'Content-Type': 'application/ld+json',
+            'Accept': 'application/ld+json',
+            ...(window.organizationSlug ? { 'X-ORGANIZATION': window.organizationSlug } : {}),
+        };
     }
 
     // ── Filters ────────────────────────────────────────────────
 
     _buildMobileFilterButton() {
-        if (!this.filtersValue || this.filtersValue.length === 0) return;
+        if (!this.filtersValue || !this.filtersValue.some(filter => !filter.tabs)) return;
 
         const container = this.element.closest('.dt-container');
         if (!container) return;
@@ -1931,7 +2051,7 @@ export default class extends Controller {
         if (!topRow || topRow.querySelector('.dt-mobile-filter-btn')) return;
 
         // Count active filters for badge
-        const activeCount = Object.keys(this._activeFilters).length;
+        const activeCount = this._sheetFilterCount();
         const badgeHtml = activeCount > 0
             ? `<span class="dt-mobile-filter-badge">${activeCount}</span>`
             : '<span class="dt-mobile-filter-badge hidden">0</span>';
@@ -1969,7 +2089,7 @@ export default class extends Controller {
         const body = document.createElement('div');
         body.className = 'dt-mobile-filter-body';
 
-        this.filtersValue.forEach(config => {
+        this.filtersValue.filter(config => !config.tabs).forEach(config => {
             const field = document.createElement('div');
             field.className = 'dt-mobile-filter-field';
 
@@ -2224,7 +2344,7 @@ export default class extends Controller {
     _updateMobileFilterBadge() {
         const badge = this.element.closest('.dt-container')?.querySelector('.dt-mobile-filter-badge');
         if (!badge) return;
-        const count = Object.keys(this._activeFilters).length;
+        const count = this._sheetFilterCount();
         badge.textContent = count;
         badge.classList.toggle('hidden', count === 0);
     }
@@ -2252,7 +2372,7 @@ export default class extends Controller {
         // nothing. The filters of the hidden columns are still reachable from the mobile filter
         // sheet, which lists them all on purpose, and re-showing one of those columns rebuilds
         // this row.
-        if (!allColumns.some(col => this.filtersValue.some(filter => filter.column === col.data))) {
+        if (!allColumns.some(col => this.filtersValue.some(filter => filter.column === col.data && !filter.tabs))) {
             return;
         }
 
@@ -2267,7 +2387,8 @@ export default class extends Controller {
 
         allColumns.forEach(col => {
             const th = document.createElement('th');
-            const filterConfig = this.filtersValue.find(f => f.column === col.data);
+            // A filter shown as status tabs (2.13) lives above the table, not in its header.
+            const filterConfig = this.filtersValue.find(f => f.column === col.data && !f.tabs);
 
             if (filterConfig) {
                 if (filterConfig.type === 'daterange') {
@@ -3050,6 +3171,9 @@ export default class extends Controller {
         for (const [param, value] of Object.entries(this._activeFilters || {})) {
             params[param] = value;
         }
+
+        // The query the status tabs count under (2.13) — see `_refreshStatusTabCounts()`.
+        this._lastQuery = { ...params };
 
         return params;
     }

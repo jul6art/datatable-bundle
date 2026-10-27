@@ -114,6 +114,16 @@ final class DataTableTest extends AbstractFunctionalTestCase
         self::assertSame('category', $filters[3]['dependsParam']);
     }
 
+    /** One static filter per table can be drawn as a row of counted tabs above it (2.13). */
+    public function testAStaticFilterCanBeDrawnAsStatusTabs(): void
+    {
+        $filters = $this->provider()->getFilters();
+
+        self::assertSame('static', $filters[4]['type']);
+        self::assertTrue($filters[4]['tabs']);
+        self::assertArrayNotHasKey('tabs', $filters[5], 'A static filter stays a select unless it asks for tabs.');
+    }
+
     public function testABulkDeleteActionCarriesBothItsRoutes(): void
     {
         $action = $this->provider()->deleteAction();
