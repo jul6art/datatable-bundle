@@ -74,13 +74,16 @@ final class CardBulkSelectionSourceTest extends TestCase
     /**
      * The bar sat above the first card: a row ticked further down changed a count nobody could see
      * (2.13.2). Below 1024px it is fixed at the foot of the screen, and the cards keep room for it.
+     *
+     * Its layer is 10: at 40 it lay across the foot of admin-bundle's menu, which opens at 20
+     * (2.13.3). Above the cards, which have none.
      */
     public function testTheBarFollowsTheScreenBelow1024Pixels(): void
     {
         $css = (string) file_get_contents(\dirname(__DIR__, 2).'/assets/styles/datatable.css');
 
         self::assertMatchesRegularExpression(
-            '/@media \(max-width: 1024px\) \{\s*\.dt-bulk-bar \{\s*@apply fixed inset-x-0 bottom-0 z-40 [^;]*bg-accent-50 dark:bg-slate-800;/',
+            '/@media \(max-width: 1024px\) \{\s*\.dt-bulk-bar \{\s*@apply fixed inset-x-0 bottom-0 z-10 [^;]*bg-accent-50 dark:bg-slate-800;/',
             $css,
             'Sous 1024 px, la barre de sélection doit être fixée au pied de l\'écran, opaque.',
         );

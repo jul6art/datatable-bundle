@@ -990,8 +990,8 @@ No new key: the card's box reuses `datatable.bulk.select_row`, and the list's «
 
 Since 2.13.2 the bulk bar follows the screen below 1024px, fixed at its foot: it used to sit above the
 first card, so a row ticked further down changed a count nobody could see. The card list keeps room
-for it while it shows. It stays under the mobile filter sheet and the row preview; an application
-that fixes its own element at the foot of a phone screen should give it a `z-index` above 40.
+for it while it shows. Its `z-index` is 10 (since 2.13.3): above the cards, under the back office's
+own layers — admin-bundle's menu opens at 20 —, the mobile filter sheet and the row preview.
 
 ### A short list opens without a search field (since 2.13.2)
 

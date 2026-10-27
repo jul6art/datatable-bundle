@@ -337,11 +337,13 @@ table.ssr-datatable td.ssr-col-right {
  * Below 1024px a row is ticked on its card, down a long list, and the bar sat above the first card:
  * the tenth tick changed a count nobody could see (2.13.2). There, the bar follows the screen at its
  * foot — opaque, the cards scroll under it — and the card list keeps room for it while it shows
- * (`has-bulk-bar`, set with the bar). Under the filter sheet and the row preview (9997 and up).
+ * (`has-bulk-bar`, set with the bar). `z-10`: above the cards, which have none, and UNDER the
+ * back office's own layers — admin-bundle's menu opens at 20, and a bar at 40 lay across its foot
+ * (2.13.3) —, the filter sheet and the row preview (9997 and up).
  */
 @media (max-width: 1024px) {
     .dt-bulk-bar {
-        @apply fixed inset-x-0 bottom-0 z-40 border-t border-b-0 bg-accent-50 dark:bg-slate-800;
+        @apply fixed inset-x-0 bottom-0 z-10 border-t border-b-0 bg-accent-50 dark:bg-slate-800;
         padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
         box-shadow: 0 -4px 12px rgb(15 23 42 / 0.08);
     }
