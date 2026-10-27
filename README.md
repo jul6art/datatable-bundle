@@ -978,6 +978,16 @@ length set by the code (a saved view) refreshes what the widget shows.
 
 Nothing to declare. A project that mounted Select2 on `.dt-length select` itself can drop it.
 
+### Selecting from the cards (since 2.13.1)
+
+Below 1024px the table gives way to cards, and its checkbox column went with it: a bulk action could
+only be run from a desktop. A table with a bulk action now puts a box in each card's header, and
+the header's « select all » above the list. Both write the selection the table's column writes, so
+a row ticked on a phone is still ticked once the screen widens, and the bulk bar is the same.
+
+No new key: the card's box reuses `datatable.bulk.select_row`, and the list's « select all » shows
+`datatable.bulk.select_all` as its text.
+
 Quality assurance
 -----------------
 

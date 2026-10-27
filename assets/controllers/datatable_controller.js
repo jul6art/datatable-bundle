@@ -3525,7 +3525,6 @@ export default class extends Controller {
         // re-renders the tbody from scratch.
         container.querySelectorAll('.dt-bulk-select-row').forEach((cb) => {
             const id = cb.dataset.id;
-            cb.checked = this._bulkSelection.has(id);
             // P4 feedback (2026-05-18) — the bulk-checkbox sits in the
             // same TD as `dtr-control`, so a click bubbles up and
             // triggers DataTables Responsive's row-expand handler.
@@ -3534,12 +3533,7 @@ export default class extends Controller {
             cb.addEventListener('click', (event) => {
                 event.stopPropagation();
             });
-            cb.addEventListener('change', () => {
-                if (cb.checked) this._bulkSelection.add(id);
-                else this._bulkSelection.delete(id);
-                this._renderBulkBar();
-                this._syncSelectAllCheckbox();
-            });
+            cb.addEventListener('change', () => this._toggleBulkRows([id], cb.checked));
         });
 
         // Header "select all" — toggles every visible row.
@@ -3547,33 +3541,46 @@ export default class extends Controller {
         if (selectAll && !selectAll.dataset.bulkBound) {
             selectAll.dataset.bulkBound = 'true';
             selectAll.addEventListener('change', () => {
-                container.querySelectorAll('.dt-bulk-select-row').forEach((cb) => {
-                    cb.checked = selectAll.checked;
-                    const id = cb.dataset.id;
-                    if (selectAll.checked) this._bulkSelection.add(id);
-                    else this._bulkSelection.delete(id);
-                });
-                this._renderBulkBar();
+                const ids = [...container.querySelectorAll('.dt-bulk-select-row')].map((cb) => cb.dataset.id);
+                this._toggleBulkRows(ids, selectAll.checked);
             });
         }
 
+        this._syncBulkBoxes();
+    }
+
+    /** Ticks or unticks rows of the selection, from the table or from the cards. */
+    _toggleBulkRows(ids, checked) {
+        ids.forEach((id) => (checked ? this._bulkSelection.add(id) : this._bulkSelection.delete(id)));
+        this._syncBulkBoxes();
+        this._renderBulkBar();
+    }
+
+    /**
+     * Every box shows the selection — the table's and the cards' alike: a row ticked on one side is
+     * ticked on the other when the screen crosses 1024px.
+     */
+    _syncBulkBoxes() {
+        const container = this.element.closest('.dt-container') || this.element;
+        container.querySelectorAll('.dt-bulk-select-row, .dt-card-select').forEach((cb) => {
+            cb.checked = this._bulkSelection.has(cb.dataset.id);
+        });
         this._syncSelectAllCheckbox();
     }
 
     _syncSelectAllCheckbox() {
         const container = this.element.closest('.dt-container') || this.element;
-        const selectAll = container.querySelector('.dt-bulk-select-all');
-        if (!selectAll) return;
 
-        const rowBoxes = [...container.querySelectorAll('.dt-bulk-select-row')];
-        if (rowBoxes.length === 0) {
-            selectAll.checked = false;
-            selectAll.indeterminate = false;
-            return;
-        }
-        const checkedCount = rowBoxes.filter(cb => cb.checked).length;
-        selectAll.checked = checkedCount === rowBoxes.length;
-        selectAll.indeterminate = checkedCount > 0 && checkedCount < rowBoxes.length;
+        // The header's box over the table's rows, the one above the cards over the cards.
+        [['.dt-bulk-select-all', '.dt-bulk-select-row'], ['.dt-card-select-all__box', '.dt-card-select']].forEach(([all, row]) => {
+            const selectAll = container.querySelector(all);
+            if (!selectAll) return;
+
+            const rowBoxes = [...container.querySelectorAll(row)];
+            const checkedCount = rowBoxes.filter(cb => cb.checked).length;
+            selectAll.checked = rowBoxes.length > 0 && checkedCount === rowBoxes.length;
+            selectAll.indeterminate = checkedCount > 0 && checkedCount < rowBoxes.length;
+        });
     }
 
     _renderBulkBar() {
@@ -3640,10 +3647,8 @@ export default class extends Controller {
 
     _clearBulkSelection() {
         this._bulkSelection.clear();
-        const container = this.element.closest('.dt-container') || this.element;
-        container.querySelectorAll('.dt-bulk-select-row').forEach(cb => { cb.checked = false; });
+        this._syncBulkBoxes();
         this._renderBulkBar();
-        this._syncSelectAllCheckbox();
     }
 
     _applyBulkAction(bar) {
@@ -4049,6 +4054,9 @@ export default class extends Controller {
             // clicks are handed to it from here. Read at click time, so a reconnect that rewires it
             // is followed, and a disconnect that drops it is too.
             this._cardContainer.addEventListener('click', (event) => this._onReorderClick?.(event));
+            // The cards' boxes are listened to here, once, rather than wired card by card: a column
+            // shown or hidden redraws the cards without a draw of the table.
+            this._cardContainer.addEventListener('change', (event) => this._onCardBoxChange(event));
             // Insert after the table wrapper
             const tableWrapper = container.querySelector('.dt-scroll, table');
             if (tableWrapper) {
@@ -4075,10 +4083,35 @@ export default class extends Controller {
                     <p>${this._orEnglish(this.t('datatable.dt.empty_table'), 'No data available in table')}</p>
                 </div>`;
         } else {
-            this._cardContainer.innerHTML = rows.map(row => this._renderCard(row, columns)).join('');
+            this._cardContainer.innerHTML = this._cardSelectAll() + rows.map(row => this._renderCard(row, columns)).join('');
+            this._syncSelectAllCheckbox();
         }
 
         this._toggleCardView();
+    }
+
+    /**
+     * The header's « select all », above the cards: below 1024px there is no header to carry it.
+     */
+    _cardSelectAll() {
+        if (this._bulkActions.length === 0) return '';
+
+        return `
+            <label class="dt-card-select-all">
+                <input type="checkbox" class="dt-card-select-all__box">
+                <span>${this._escHtml(this.t('datatable.bulk.select_all'))}</span>
+            </label>`;
+    }
+
+    /** A card's box, or the « select all » above them, ticked. */
+    _onCardBoxChange(event) {
+        const box = event.target;
+        if (box.classList.contains('dt-card-select')) {
+            this._toggleBulkRows([box.dataset.id], box.checked);
+        } else if (box.classList.contains('dt-card-select-all__box')) {
+            const ids = [...this._cardContainer.querySelectorAll('.dt-card-select')].map((cb) => cb.dataset.id);
+            this._toggleBulkRows(ids, box.checked);
+        }
     }
 
     /**
@@ -4141,6 +4174,13 @@ export default class extends Controller {
         // from a desktop only: below 1024px the table — and its handle column — is not shown.
         const reorderHtml = this._reorderEnabled ? this._reorderCell(row, false) : '';
 
+        // The card's box in the bulk selection (2.13.1), the same set as the table's column: below
+        // 1024px that column is not shown, and a bulk action could only be run from a desktop.
+        const id = String(row?.id ?? '');
+        const bulkHtml = this._bulkActions.length > 0 && '' !== id
+            ? `<input type="checkbox" class="dt-card-select" data-id="${this._escAttr(id)}" aria-label="${this._escAttr(this.t('datatable.bulk.select_row'))}"${this._bulkSelection.has(id) ? ' checked' : ''}>`
+            : '';
+
         // Soft-deleted rows get the same red treatment as the desktop
         // table — the desktop variant uses a `<tr>` class but the card
         // layout has its own block, so both surfaces stay visually
@@ -4151,6 +4191,7 @@ export default class extends Controller {
             <div class="dt-card${deletedClass}">
                 <div class="dt-card-header">
                     ${reorderHtml}
+                    ${bulkHtml}
                     <div class="dt-card-primary">${primaryHtml}</div>
                     ${actionsHtml ? `<div class="dt-card-actions">${actionsHtml}</div>` : ''}
                 </div>

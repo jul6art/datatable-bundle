@@ -363,8 +363,21 @@ table.dataTable th.dt-bulk-checkbox-col {
 }
 
 .dt-bulk-select-row,
-.dt-bulk-select-all {
+.dt-bulk-select-all,
+.dt-card-select,
+.dt-card-select-all__box {
     @apply w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent-600 focus:ring-2 focus:ring-accent-500 cursor-pointer;
+}
+
+/* Below 1024px the selection lives on the cards (2.13.1): a box in each card's header, the header's
+   « select all » above the list. A finger, not a pointer: one size up. */
+.dt-card-select,
+.dt-card-select-all__box {
+    @apply flex-shrink-0 w-5 h-5;
+}
+
+.dt-card-select-all {
+    @apply flex items-center gap-2 px-1 text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none;
 }
 
 /* ── Row reordering (2.9) ─────────────────────────────── */
