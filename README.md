@@ -969,6 +969,15 @@ datatable:
         error: "L'aperçu n'a pas pu être chargé."         # a page that failed to load
 ```
 
+### The page-length list is a Select2 (since 2.13.1)
+
+DataTables builds « Show 25 entries » as a native `<select>`, and the stylesheet only dressed it: in
+a back office whose every list is a Select2, one native list stood above each table. The table now
+hands it to `ui--select2` once it is built — no clear button, a length is always chosen —, and a
+length set by the code (a saved view) refreshes what the widget shows.
+
+Nothing to declare. A project that mounted Select2 on `.dt-length select` itself can drop it.
+
 Quality assurance
 -----------------
 

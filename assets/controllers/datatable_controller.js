@@ -1481,6 +1481,7 @@ export default class extends Controller {
 
         this.dataTable = new window.DataTable(this.element, config);
         this._injectSearchIcon();
+        this._enhanceLengthSelect();
         this._wireReorder();
         // P2 (2026-05-14-4) — DataTables 2.x wraps the <table> in a
         // `<div class="dt-layout-cell dt-layout-full">`. The `dt-layout-cell`
@@ -1611,6 +1612,25 @@ export default class extends Controller {
                 searchInput.dataset.iconInjected = '1';
             }
         }
+    }
+
+    /**
+     * The page-length list as a Select2, like every other list the table draws — the filters', the
+     * bulk bar's. DataTables builds it native and the stylesheet only dressed it, so a back office
+     * whose every `<select>` is a Select2 still showed a native one above each table (2.13.1).
+     *
+     * Through `ui--select2`, which Stimulus connects as soon as the attribute lands and disconnects
+     * with the old container on a rebuild. A length the code sets — a saved view — moves the native
+     * value only: `length.dt` refreshes what Select2 shows. `change.select2` reaches Select2 alone,
+     * not DataTables' own `change` listener, so nothing loops.
+     */
+    _enhanceLengthSelect() {
+        const select = this.element.closest('.dt-container')?.querySelector('.dt-length select');
+        if (!select || select.hasAttribute('data-controller')) return;
+
+        select.setAttribute('data-ui--select2-allow-clear-value', 'false');
+        select.setAttribute('data-controller', 'ui--select2');
+        this.dataTable.on('length.dt', () => window.jQuery?.(select).trigger('change.select2'));
     }
 
     // ── IRI resolution (batch after draw) ───────────────────────
