@@ -650,6 +650,12 @@ table.dataTable > tbody > tr.child span.dtr-data {
     @apply inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500;
 }
 
+/* A view applied: the views button takes the selected colour of a status tab — the bookmark and the
+ * view's name in the accent. After the rule above, which it must beat at the same specificity. */
+.dt-prefs-btn--on {
+    @apply bg-accent-50 text-accent-700 border-accent-500 hover:bg-accent-50 hover:border-accent-600 dark:bg-slate-700 dark:text-accent-300 dark:border-accent-500 dark:hover:bg-slate-700 dark:hover:border-accent-500;
+}
+
 /* The label is what a narrow toolbar gives up first — the icon still says which panel it is. Hidden
  * to the EYE only: it stays the button's name (axe `button-name`, critical, at 390 px), and stays the
  * name of the view on screen, which `_syncViewButtonLabel()` writes into it. */

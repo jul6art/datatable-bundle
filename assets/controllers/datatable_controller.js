@@ -1067,6 +1067,9 @@ export default class extends Controller {
      * label when none is. It is the only place the active view is visible with the panel CLOSED —
      * without it, a table opened on its default view looks like a table with a filter someone
      * forgot to clear.
+     *
+     * It takes the selected colour too: the name alone, in grey, reads as the button's own label,
+     * and on a phone, where the label is hidden to the eye, the bookmark is all there is to see.
      */
     _syncViewButtonLabel() {
         const label = this.element.closest('.dt-container')?.querySelector('.dt-prefs--views .dt-prefs-btn-label');
@@ -1074,6 +1077,7 @@ export default class extends Controller {
 
         const active = (this._views || []).find(view => view.id === this._activeViewId);
         label.textContent = active ? active.name : this.t('datatable.views.button');
+        label.closest('.dt-prefs-btn')?.classList.toggle('dt-prefs-btn--on', Boolean(active));
     }
 
     _panelHeader(hintKey) {
