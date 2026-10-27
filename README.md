@@ -988,6 +988,11 @@ a row ticked on a phone is still ticked once the screen widens, and the bulk bar
 No new key: the card's box reuses `datatable.bulk.select_row`, and the list's « select all » shows
 `datatable.bulk.select_all` as its text.
 
+Since 2.13.2 the bulk bar follows the screen below 1024px, fixed at its foot: it used to sit above the
+first card, so a row ticked further down changed a count nobody could see. The card list keeps room
+for it while it shows. It stays under the mobile filter sheet and the row preview; an application
+that fixes its own element at the foot of a phone screen should give it a `z-index` above 40.
+
 ### A short list opens without a search field (since 2.13.2)
 
 Select2 puts a search field above every list it opens: the page-length list offered one to filter

@@ -333,6 +333,24 @@ table.ssr-datatable td.ssr-col-right {
     display: none !important;
 }
 
+/*
+ * Below 1024px a row is ticked on its card, down a long list, and the bar sat above the first card:
+ * the tenth tick changed a count nobody could see (2.13.2). There, the bar follows the screen at its
+ * foot — opaque, the cards scroll under it — and the card list keeps room for it while it shows
+ * (`has-bulk-bar`, set with the bar). Under the filter sheet and the row preview (9997 and up).
+ */
+@media (max-width: 1024px) {
+    .dt-bulk-bar {
+        @apply fixed inset-x-0 bottom-0 z-40 border-t border-b-0 bg-accent-50 dark:bg-slate-800;
+        padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+        box-shadow: 0 -4px 12px rgb(15 23 42 / 0.08);
+    }
+
+    .dt-card-list.has-bulk-bar {
+        padding-bottom: 10rem;
+    }
+}
+
 .dt-bulk-bar__count {
     @apply font-medium text-accent-900 dark:text-accent-200;
 }

@@ -3594,6 +3594,10 @@ export default class extends Controller {
         let bar = container.querySelector('.dt-bulk-bar');
         const count = this._bulkSelection.size;
 
+        // Below 1024px the bar is fixed at the foot of the screen: the cards keep room for it, or
+        // the last one would stay under it (2.13.2).
+        this._cardContainer?.classList.toggle('has-bulk-bar', count > 0);
+
         if (count === 0) {
             if (bar) bar.classList.add('hidden');
             return;

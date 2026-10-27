@@ -71,6 +71,27 @@ final class CardBulkSelectionSourceTest extends TestCase
         self::assertStringContainsString('.dt-card-select-all {', $css);
     }
 
+    /**
+     * The bar sat above the first card: a row ticked further down changed a count nobody could see
+     * (2.13.2). Below 1024px it is fixed at the foot of the screen, and the cards keep room for it.
+     */
+    public function testTheBarFollowsTheScreenBelow1024Pixels(): void
+    {
+        $css = (string) file_get_contents(\dirname(__DIR__, 2).'/assets/styles/datatable.css');
+
+        self::assertMatchesRegularExpression(
+            '/@media \(max-width: 1024px\) \{\s*\.dt-bulk-bar \{\s*@apply fixed inset-x-0 bottom-0 z-40 [^;]*bg-accent-50 dark:bg-slate-800;/',
+            $css,
+            'Sous 1024 px, la barre de sélection doit être fixée au pied de l\'écran, opaque.',
+        );
+        self::assertMatchesRegularExpression('/\.dt-card-list\.has-bulk-bar \{\s*padding-bottom: 10rem;/', $css);
+        self::assertStringContainsString(
+            "this._cardContainer?.classList.toggle('has-bulk-bar', count > 0);",
+            self::method('_renderBulkBar'),
+            'Les cartes doivent garder la place de la barre tant qu\'elle s\'affiche.',
+        );
+    }
+
     private static function method(string $name, string $arguments = '()'): string
     {
         self::assertSame(1, preg_match('/^    '.preg_quote($name.$arguments, '/').' \{\n[\s\S]*?\n    \}\n/m', self::source(), $match), $name.' is gone.');
