@@ -40,6 +40,11 @@ export default class extends Controller {
         // = the displayed `textKey`; `'none'` sends no order, for a list whose server order IS the
         // meaning. An unsorted list came back newest first.
         orderKey: { type: String, default: '' },
+        // Below this many options, the list opens without a search field (Select2's
+        // `minimumResultsForSearch`): four page lengths do not need one. 0 = always a field, the
+        // default; a negative number = never. Ignored with a `url`: an autocomplete IS a search,
+        // and its first results are not there yet to be counted.
+        minimumResultsForSearch: { type: Number, default: 0 },
     };
 
     connect() {
@@ -107,6 +112,7 @@ export default class extends Controller {
             // valeurs libres (pour les combos AJAX + free-text mix
             // comme le champ `carrier` du BL).
             tags: this.allowTagsValue,
+            minimumResultsForSearch: this.urlValue ? 0 : this.minimumResultsForSearchValue,
         };
 
         if (this.urlValue) {

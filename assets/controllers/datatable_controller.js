@@ -1622,13 +1622,15 @@ export default class extends Controller {
      * Through `ui--select2`, which Stimulus connects as soon as the attribute lands and disconnects
      * with the old container on a rebuild. A length the code sets — a saved view — moves the native
      * value only: `length.dt` refreshes what Select2 shows. `change.select2` reaches Select2 alone,
-     * not DataTables' own `change` listener, so nothing loops.
+     * not DataTables' own `change` listener, so nothing loops. No search field: four lengths
+     * (2.13.2).
      */
     _enhanceLengthSelect() {
         const select = this.element.closest('.dt-container')?.querySelector('.dt-length select');
         if (!select || select.hasAttribute('data-controller')) return;
 
         select.setAttribute('data-ui--select2-allow-clear-value', 'false');
+        select.setAttribute('data-ui--select2-minimum-results-for-search-value', '-1');
         select.setAttribute('data-controller', 'ui--select2');
         this.dataTable.on('length.dt', () => window.jQuery?.(select).trigger('change.select2'));
     }
@@ -3618,7 +3620,9 @@ export default class extends Controller {
         // Stimulus auto-connects `ui--select2` once the markup lands in
         // the DOM. An empty `<option value="">` is required for Select2
         // to switch to placeholder mode; allowClear is off because the
-        // bulk bar only makes sense when an action is picked.
+        // bulk bar only makes sense when an action is picked. A search
+        // field from eight actions on, like the static filters of the
+        // mobile sheet: a table offers two or three (2.13.2).
         bar.innerHTML = `
             <span class="dt-bulk-bar__count" data-bulk-count></span>
             <span class="dt-bulk-select__container">
@@ -3626,6 +3630,7 @@ export default class extends Controller {
                         data-bulk-select
                         data-controller="ui--select2"
                         data-ui--select2-placeholder-value="${this._escAttr(this.t('datatable.bulk.choose'))}"
+                        data-ui--select2-minimum-results-for-search-value="8"
                         data-ui--select2-allow-clear-value="false">
                     <option value=""></option>
                     ${options}

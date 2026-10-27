@@ -988,6 +988,20 @@ a row ticked on a phone is still ticked once the screen widens, and the bulk bar
 No new key: the card's box reuses `datatable.bulk.select_row`, and the list's « select all » shows
 `datatable.bulk.select_all` as its text.
 
+### A short list opens without a search field (since 2.13.2)
+
+Select2 puts a search field above every list it opens: the page-length list offered one to filter
+four numbers. `ui--select2` now takes Select2's `minimumResultsForSearch` — below that many options,
+no field:
+
+```html
+<select data-controller="ui--select2" data-ui--select2-minimum-results-for-search-value="8">
+```
+
+`0`, the default, keeps a field on every list, as before; a negative number never shows one. It is
+ignored with a `url`: an autocomplete is a search. The table sets it on its own short lists — never
+a field for the page lengths, one from eight bulk actions on.
+
 Quality assurance
 -----------------
 
