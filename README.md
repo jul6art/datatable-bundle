@@ -746,10 +746,17 @@ another address than its items — a moderation list at `/api/moderation/galleri
 data-{{ dt }}-feed-iri-value="{{ path('_api_/galleries{._format}_get_collection') }}"
 ```
 
-The token endpoint returns `{ token, subscribed: [...] }`, and `subscribed[]` is authoritative for
-both the JWT allow-list and the subscription list — so the topics are decided in one place instead
-of drifting between a template and a claim. `jul6art/push-bundle` mints the token
-(`SubscriberCookieFactory`) and publishes the changes (`EntityChangePublisher`).
+The token endpoint sets the subscriber cookie and returns `{ subscribed: [...] }`, and
+`subscribed[]` is authoritative for both the token's grant and the subscription list — so the topics
+are decided in one place instead of drifting between a template and a claim. `jul6art/push-bundle`
+(≥ 3.0) mints the token and its cookie (`SubscriberCookieFactory`) and publishes the changes
+(`EntityChangePublisher`).
+
+> ⚠️ **Since 3.0 the bus speaks the Mercure protocol 1.0**: `match=` for each topic, `last_event_id`
+> on reconnection, and the token in the cookie only — a 1.x hub refuses it in the URL (RFC 9700).
+> Serve the hub under the page's own host (relay `/.well-known/mercure`), or the cookie never
+> reaches it. A 0.x hub does not understand `match=`: upgrade it first, or run a 1.x hub with
+> `protocol_version_compatibility 8` while other applications still speak 0.x.
 
 > ⚠️ **The catch-up after a disconnect is bounded to 5 minutes.** The bus keeps the last event ID in
 > `sessionStorage` and hands it back to the hub on reconnection, so a brief network drop loses

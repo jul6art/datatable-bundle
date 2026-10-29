@@ -14,10 +14,15 @@
  *
  * Topics are **not** declared client-side. The token endpoint
  * (`/admin/mercure-token` for super-admins, `/organization/mercure-token`
- * for org users) returns `{ token, subscribed: [...] }`; `subscribed[]` is
- * the authoritative list used both as the JWT allow-list and as the
- * EventSource subscription list. This avoids the drift that would happen
+ * for org users) sets the subscriber cookie and returns `{ subscribed: [...] }`;
+ * `subscribed[]` is the authoritative list used both as the token's grant and
+ * as the EventSource subscription list. This avoids the drift that would happen
  * if Twig templates had to enumerate channels separately.
+ *
+ * Mercure protocol 1.0 (3.0): topics are matched exactly (`match=`), the
+ * reconnection ID is `last_event_id`, and the token travels in the cookie only
+ * — the `authorization` query parameter is gone (RFC 9700). The hub must be
+ * served under the page's own host, or the cookie never reaches it.
  *
  * Additional topics can still be registered at runtime via `addTopic(topic)`
  * — the notification bell uses this to watch `/notifications/{userId}`
@@ -85,17 +90,15 @@ class MercureBus {
         } catch {
             return;
         }
-        if (!data || !data.token) return;
+        if (!data || !Array.isArray(data.subscribed)) return;
 
         // The server is the single source of truth — add whatever the
         // token endpoint authorised for this user.
-        if (Array.isArray(data.subscribed)) {
-            data.subscribed.forEach(topic => {
-                if (typeof topic === 'string' && topic) this._topics.add(topic);
-            });
-        }
+        data.subscribed.forEach(topic => {
+            if (typeof topic === 'string' && topic) this._topics.add(topic);
+        });
 
-        this._openEventSource(hubUrl, data.token);
+        this._openEventSource(hubUrl);
     }
 
     async _reconnect() {
@@ -109,27 +112,27 @@ class MercureBus {
         } catch {
             return;
         }
-        if (!data || !data.token) return;
+        if (!data || !Array.isArray(data.subscribed)) return;
 
         if (this._eventSource) {
             this._eventSource.close();
             this._eventSource = null;
         }
-        this._openEventSource(hubUrl, data.token);
+        this._openEventSource(hubUrl);
     }
 
-    _openEventSource(hubUrl, token) {
-        const url = new URL(hubUrl);
+    _openEventSource(hubUrl) {
+        const url = new URL(hubUrl, window.location.href);
         for (const topic of this._topics) {
-            url.searchParams.append('topic', topic);
+            url.searchParams.append('match', topic);
         }
-        url.searchParams.set('authorization', token);
         const lastEventId = this._replayableId();
         if (lastEventId) {
-            url.searchParams.set('lastEventID', lastEventId);
+            url.searchParams.set('last_event_id', lastEventId);
         }
 
-        const es = new EventSource(url.toString());
+        // The token endpoint set the subscriber cookie: `withCredentials` sends it along.
+        const es = new EventSource(url.toString(), { withCredentials: true });
         es.onmessage = (event) => this._dispatch(event);
         // ⚠️ The browser reconnects on its own and sends the last ID it received, whatever its age.
         // Past the replay bound, that reconnect would replay hours of history: close it and open a
