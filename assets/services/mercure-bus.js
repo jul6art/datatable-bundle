@@ -19,6 +19,10 @@
  * as the EventSource subscription list. This avoids the drift that would happen
  * if Twig templates had to enumerate channels separately.
  *
+ * A family of channels — every organisation's feed — is a URL Pattern (3.1):
+ * the endpoint names them in `patterns` (`/organizations/:id/feed`), and the
+ * bus listens to each with `match_urlpattern=`.
+ *
  * Mercure protocol 1.0 (3.0): topics are matched exactly (`match=`), the
  * reconnection ID is `last_event_id`, and the token travels in the cookie only
  * — the `authorization` query parameter is gone (RFC 9700). The hub must be
@@ -53,6 +57,7 @@ class MercureBus {
         this._eventSource = null;
         this._handlers = new Set();
         this._topics = new Set();
+        this._patterns = new Set();
         this._connectPromise = null;
         this._initialized = false;
         // `{ id, at }` — the ID and when it was RECEIVED, so its age can be told.
@@ -97,6 +102,7 @@ class MercureBus {
         data.subscribed.forEach(topic => {
             if (typeof topic === 'string' && topic) this._topics.add(topic);
         });
+        this._addPatterns(data.patterns);
 
         this._openEventSource(hubUrl);
     }
@@ -113,6 +119,7 @@ class MercureBus {
             return;
         }
         if (!data || !Array.isArray(data.subscribed)) return;
+        this._addPatterns(data.patterns);
 
         if (this._eventSource) {
             this._eventSource.close();
@@ -125,6 +132,9 @@ class MercureBus {
         const url = new URL(hubUrl, window.location.href);
         for (const topic of this._topics) {
             url.searchParams.append('match', topic);
+        }
+        for (const pattern of this._patterns) {
+            url.searchParams.append('match_urlpattern', pattern);
         }
         const lastEventId = this._replayableId();
         if (lastEventId) {
@@ -145,6 +155,13 @@ class MercureBus {
             }
         };
         this._eventSource = es;
+    }
+
+    _addPatterns(patterns) {
+        if (!Array.isArray(patterns)) return;
+        patterns.forEach(pattern => {
+            if (typeof pattern === 'string' && pattern) this._patterns.add(pattern);
+        });
     }
 
     /** The last ID if it is recent enough to be replayed from, otherwise null. */

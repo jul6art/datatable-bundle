@@ -28,6 +28,17 @@ final class MercureProtocolSourceTest extends TestCase
     }
 
     /**
+     * A family of channels is a URL Pattern since Mercure 1.0 (3.1): the token endpoint names them in
+     * `patterns`, and the bus listens to each with `match_urlpattern=` — with `match=`, the hub would
+     * compare `/organizations/:id/feed` letter by letter and forward nothing.
+     */
+    public function testPatternsAreMatchedAsUrlPatterns(): void
+    {
+        self::assertStringContainsString('data.patterns', self::source());
+        self::assertStringContainsString("url.searchParams.append('match_urlpattern', pattern)", self::source());
+    }
+
+    /**
      * The token travels in the cookie the token endpoint sets — never in the URL, where a 1.x hub
      * refuses it and where proxies and browser histories would keep it.
      */

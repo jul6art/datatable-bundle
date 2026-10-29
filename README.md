@@ -757,6 +757,11 @@ are decided in one place instead of drifting between a template and a claim. `ju
 > Serve the hub under the page's own host (relay `/.well-known/mercure`), or the cookie never
 > reaches it. A 0.x hub does not understand `match=`: upgrade it first, or run a 1.x hub with
 > `protocol_version_compatibility 8` while other applications still speak 0.x.
+>
+> A family of channels is a URL Pattern since 1.0, which dropped URI templates (3.1): the endpoint
+> names them in `patterns` (`{ subscribed: [...], patterns: ['/organizations/:id/feed'] }`), granted
+> as such by push-bundle ≥ 3.1 (`createToken($topics, $patterns)`), and the bus listens to each with
+> `match_urlpattern=`.
 
 > ⚠️ **The catch-up after a disconnect is bounded to 5 minutes.** The bus keeps the last event ID in
 > `sessionStorage` and hands it back to the hub on reconnection, so a brief network drop loses
