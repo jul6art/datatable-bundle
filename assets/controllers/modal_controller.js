@@ -44,6 +44,9 @@ export default class extends Controller {
         const iconSvg  = ICON_SVG[variant]    ?? ICON_SVG.danger;
         const btnClass = CONFIRM_BTN[variant] ?? CONFIRM_BTN.danger;
 
+        // ⚠️ The skeleton is the only HTML here: the title, the message and the two labels are set
+        // with `textContent`. The message names the row it acts on (« Supprimer « %subject% » ? »),
+        // and that subject is data someone typed (audit 2026-11-10, S9).
         const overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
         overlay.innerHTML = `
@@ -54,20 +57,23 @@ export default class extends Controller {
                         ${iconSvg}
                     </div>
                     <div class="flex-1 min-w-0">
-                        ${this.titleValue   ? `<h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">${this.titleValue}</h3>`  : ''}
-                        ${this.messageValue ? `<p class="text-sm text-slate-600 dark:text-slate-400">${this.messageValue}</p>` : ''}
+                        ${this.titleValue   ? '<h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1" data-title></h3>' : ''}
+                        ${this.messageValue ? '<p class="text-sm text-slate-600 dark:text-slate-400" data-message></p>' : ''}
                     </div>
                 </div>
                 <div class="mt-6 flex justify-end gap-3">
-                    <button type="button" data-cancel class="${this.cancelLabelValue ? 'btn-secondary' : 'hidden'}">
-                        ${this.cancelLabelValue}
-                    </button>
-                    <button type="button" data-confirm class="${btnClass}">
-                        ${this.confirmLabelValue}
-                    </button>
+                    <button type="button" data-cancel class="${this.cancelLabelValue ? 'btn-secondary' : 'hidden'}"></button>
+                    <button type="button" data-confirm class="${btnClass}"></button>
                 </div>
             </div>
         `;
+
+        const title = overlay.querySelector('[data-title]');
+        if (title) title.textContent = this.titleValue;
+        const message = overlay.querySelector('[data-message]');
+        if (message) message.textContent = this.messageValue;
+        overlay.querySelector('[data-cancel]').textContent = this.cancelLabelValue;
+        overlay.querySelector('[data-confirm]').textContent = this.confirmLabelValue;
 
         overlay.querySelector('[data-backdrop]').addEventListener('click', () => overlay.remove());
         overlay.querySelector('[data-cancel]').addEventListener('click',   () => overlay.remove());
