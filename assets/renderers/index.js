@@ -31,13 +31,36 @@
  *
  * ```js
  * registerRenderers({
- *     invoiceNumber: (c) => (data, type, row) => `<code>${data}</code> — ${c.t('erp.invoice.of')} ${row.customerName}`,
+ *     invoiceNumber: (c) => (data, type, row) => `<code>${escapeHtml(data)}</code> — ${escapeHtml(row.customerName)}`,
  * });
  * ```
  *
  * Registering the same name twice replaces the first: the last import wins, which is what makes an
  * application able to override one of its own without editing the file that declared it.
+ *
+ * ## ⚠️ The contract: data in, HTML out — so every value is escaped
+ *
+ * DataTables writes what a renderer returns with `innerHTML`. A renderer therefore receives data
+ * someone typed (a name chosen at sign-up, a label, a comment) and must escape every value it
+ * inserts, between tags and in attributes alike, with {@see escapeHtml}:
+ *
+ * ```js
+ * import { registerRenderers, escapeHtml } from '@jul6art/datatable-bundle/renderers';
+ *
+ * registerRenderers({
+ *     invoiceNumber: (c) => (data, type, row) =>
+ *         `<code>${escapeHtml(data)}</code> — ${escapeHtml(c.t('erp.invoice.of'))} ${escapeHtml(row.customerName)}`,
+ * });
+ * ```
+ *
+ * A column without a renderer is drawn as text, escaped. HTML that the server produced and vouches
+ * for goes through the built-in `html` renderer, asked for by name (`render: 'html'`) — never
+ * through a renderer that skips the escaping (audit 2026-11-10, S9).
  */
+
+import { escapeHtml } from '../services/escape';
+
+export { escapeHtml, escapeAttr, encodePathSegment, safeUrlPath } from '../services/escape';
 
 /** @type {Record<string, (controller: object) => Function>} */
 const registry = {};
@@ -102,7 +125,8 @@ export function badge(labelPath, palette) {
 
         const key = String(data);
         const classes = PALETTES[palette[key]] ?? PALETTES.slate;
-        const label = c.t(`${labelPath}.${key}`);
+        // Escaped: a missing translation returns the KEY, which carries the row's raw value.
+        const label = escapeHtml(c.t(`${labelPath}.${key}`));
 
         // `whitespace-nowrap`: a two-word label (« Au marché », « Partially filled ») broke in two
         // lines inside a narrow column, and the pill with it (seen in production, 2026-10-19).

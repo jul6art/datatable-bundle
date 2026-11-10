@@ -260,10 +260,26 @@ And the stylesheets, which use Tailwind's `@apply`:
 
 ### 4. Register the badge renderers of your own domain
 
-The controller ships twenty-one generic renderers: `statusBadge`, `activeBadge`, `booleanBadge`,
+The controller ships twenty-two generic renderers: `statusBadge`, `activeBadge`, `booleanBadge`,
 `iri`, `userIri`, `userNameWithAvatar`, `nameLink`, `date`, `dateOnly`, `monoCode`, `truncated`,
 `colorSwatch`, `country`, `currency`, `number0`, `number2`, `quantity`, `percent0`, `fileSize`, `durationMs`,
-`chipList`.
+`chipList`, `html`.
+
+> ⚠️ **A renderer receives data someone typed, and returns HTML: it escapes every value it inserts**
+> (since 3.1.1). DataTables writes a cell with `innerHTML`, so a first name chosen at sign-up as
+> `<img src=x onerror=…>` used to run in the session of whoever opened the list. Three rules follow:
+>
+> - **a column without a renderer is drawn as escaped text** — it no longer reaches the cell raw;
+>   an unknown renderer name falls back to the same text renderer;
+> - **every renderer escapes** — the bundle's own ones do, and yours must, with the `escapeHtml()`
+>   the `renderers` entry point exports (`encodePathSegment()` for a value in a URL,
+>   `safeUrlPath()` for a stored path in a `src`);
+> - **HTML the server produced and vouches for** asks for it by name: `render: 'html'`, with a comment
+>   in the provider saying why the source is safe. It is the one renderer that writes its value as is.
+>
+> The confirmation modal and the row actions follow the same rule: titles, messages and labels are
+> set as text, and a row value substituted in an action route (`{id}`, `{email}`) is
+> percent-encoded.
 
 > ⚠️ **Dates render as `DD/MM/YYYY HH:mm` (`dateOnly`: `DD/MM/YYYY`), in every language.** The
 > format is deliberately NOT locale-driven: `Intl`'s short style renders `8/25/26` in English and
@@ -279,14 +295,14 @@ Everything with business vocabulary in it is yours:
 
 ```js
 // assets/datatable/renderers.js, imported once from the entry point
-import { registerRenderers, badge } from '@jul6art/datatable-bundle/renderers';
+import { registerRenderers, badge, escapeHtml } from '@jul6art/datatable-bundle/renderers';
 
 registerRenderers({
     quoteStatusBadge: badge('datatable.quote_status', {
         draft: 'slate', sent: 'sky', accepted: 'emerald', rejected: 'red',
     }),
-    // Anything `badge()` does not cover is a plain factory:
-    invoiceNumber: (c) => (data, type, row) => `<code>${data}</code> · ${row.customerName}`,
+    // Anything `badge()` does not cover is a plain factory — and escapes what it inserts:
+    invoiceNumber: (c) => (data, type, row) => `<code>${escapeHtml(data)}</code> · ${escapeHtml(row.customerName)}`,
 });
 ```
 

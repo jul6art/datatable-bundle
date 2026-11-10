@@ -9,6 +9,7 @@ import { ajaxQuery, resolveOrderKey } from '../select2-config';
 import { installActionsDropdown } from '../services/dropdown';
 import { evaluateCondition } from '../services/condition';
 import { openPreviewSheet, closePreviewSheet } from '../services/preview-sheet';
+import { escapeHtml, escapeAttr, encodePathSegment, safeUrlPath } from '../services/escape';
 
 /**
  * The server-driven table: pagination, sorting, search, filters, per-row and bulk actions, live
@@ -2976,7 +2977,10 @@ export default class extends Controller {
             return {
                 data: col.data,
                 title: col.title,
-                render: col.render ? this.getRenderer(col.render) : null,
+                // ⚠️ Never `null`: without a renderer, DataTables writes the raw value with
+                // `innerHTML`, and a name typed as `<img onerror=…>` runs in the reader's session
+                // (audit 2026-11-10, S9). A column without one gets the text renderer.
+                render: col.render ? this.getRenderer(col.render) : this._textRenderer(),
                 responsivePriority: col.responsivePriority || 5,
                 defaultContent: col.defaultContent || '',
                 orderable: col.orderable !== false,
@@ -3004,7 +3008,7 @@ export default class extends Controller {
                 responsivePriority: 1,
                 className: 'dt-bulk-checkbox-col',
                 render: (data, type, row) =>
-                    `<input type="checkbox" class="dt-bulk-select-row" data-id="${row.id}" aria-label="${this._escHtml(this.t('datatable.bulk.select_row'))}">`,
+                    `<input type="checkbox" class="dt-bulk-select-row" data-id="${escapeAttr(row.id)}" aria-label="${this._escHtml(this.t('datatable.bulk.select_row'))}">`,
             });
         }
 
@@ -3286,18 +3290,22 @@ export default class extends Controller {
 
     getRenderer(renderName) {
         const renderers = {
+            // ⚠️ Every `${…}` below that carries row data is escaped: the name and the initials are
+            // typed by the user themselves, at sign-up (audit 2026-11-10, S9).
             userNameWithAvatar: (data, type, row) => {
+                if (type !== 'display') return data;
                 const initials = (row.firstName?.charAt(0) || '') + (row.lastName?.charAt(0) || '');
-                const avatar = row.avatarPath
-                    ? `<img src="/${row.avatarPath}" alt="" class="w-full h-full object-cover">`
-                    : `<span>${initials || '?'}</span>`;
+                const avatarPath = safeUrlPath(row.avatarPath);
+                const avatar = avatarPath
+                    ? `<img src="/${escapeAttr(avatarPath)}" alt="" class="w-full h-full object-cover">`
+                    : `<span>${escapeHtml(initials || '?')}</span>`;
                 return `
                     <div class="flex items-center gap-3">
                         <div class="w-7 h-7 rounded-full overflow-hidden bg-accent-100 flex items-center justify-center text-xs font-bold text-accent-600 flex-shrink-0">
                             ${avatar}
                         </div>
-                        <a href="${this.userLinkPrefixValue}/${row.id}" class="font-medium text-slate-900 dark:text-slate-100 hover:text-accent-600 dark:hover:text-accent-400 transition-colors">
-                            ${data}
+                        <a href="${escapeAttr(this.userLinkPrefixValue)}/${encodePathSegment(row.id)}" class="font-medium text-slate-900 dark:text-slate-100 hover:text-accent-600 dark:hover:text-accent-400 transition-colors">
+                            ${escapeHtml(data)}
                         </a>
                     </div>
                 `;
@@ -3319,13 +3327,14 @@ export default class extends Controller {
                 const col = this._columns[dataIdx];
                 const prefix = col?.linkPrefix || '';
                 const id = row[col?.linkIdField || 'id'];
-                if (!prefix || !id) return data;
-                const safe = String(data ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                return `<a href="${prefix}/${id}" class="font-medium text-slate-900 dark:text-slate-100 hover:text-accent-600 dark:hover:text-accent-400 transition-colors">${safe}</a>`;
+                const safe = escapeHtml(data);
+                if (!prefix || !id) return safe;
+                return `<a href="${escapeAttr(prefix)}/${encodePathSegment(id)}" class="font-medium text-slate-900 dark:text-slate-100 hover:text-accent-600 dark:hover:text-accent-400 transition-colors">${safe}</a>`;
             },
             iri: (data, type, row, meta) => {
+                if (type !== 'display') return data;
                 if (!data || typeof data !== 'string' || !data.startsWith('/api/')) {
-                    return data || '—';
+                    return data ? escapeHtml(data) : '—';
                 }
                 // `meta.col` is the DataTables column index, which is shifted
                 // by 1 when the bulk checkbox column is prepended. Map it
@@ -3334,39 +3343,44 @@ export default class extends Controller {
                 const dataIdx = meta.col - this._leadingColumns;
                 const field = this._columns[dataIdx]?.resolveField || 'name';
                 const cached = iriResolver.get(data);
-                if (cached) return cached[field] || '—';
+                if (cached) return cached[field] ? escapeHtml(cached[field]) : '—';
                 if (cached === null) return '—';
                 return '<span class="text-slate-400 text-xs italic">…</span>';
             },
             userIri: (data, type, row, meta) => {
+                if (type !== 'display') return data;
                 if (!data || typeof data !== 'string' || !data.startsWith('/api/')) {
-                    return data || '—';
+                    return data ? escapeHtml(data) : '—';
                 }
                 const cached = iriResolver.get(data);
                 if (cached === null) return '—';
                 if (!cached) return '<span class="text-slate-400 text-xs italic">…</span>';
                 const name = cached.fullName || `${cached.firstName || ''} ${cached.lastName || ''}`.trim() || '—';
                 const initials = (cached.firstName?.charAt(0) || '') + (cached.lastName?.charAt(0) || '');
-                const avatar = cached.avatarPath
-                    ? `<img src="/${cached.avatarPath}" alt="" class="w-full h-full object-cover">`
-                    : `<span>${initials || '?'}</span>`;
+                const avatarPath = safeUrlPath(cached.avatarPath);
+                const avatar = avatarPath
+                    ? `<img src="/${escapeAttr(avatarPath)}" alt="" class="w-full h-full object-cover">`
+                    : `<span>${escapeHtml(initials || '?')}</span>`;
                 return `
                     <div class="flex items-center gap-2">
                         <div class="w-6 h-6 rounded-full overflow-hidden bg-accent-100 flex items-center justify-center text-[10px] font-bold text-accent-600 flex-shrink-0">
                             ${avatar}
                         </div>
-                        <span class="text-slate-900 dark:text-slate-100">${name}</span>
+                        <span class="text-slate-900 dark:text-slate-100">${escapeHtml(name)}</span>
                     </div>
                 `;
             },
-            truncated: (data) => {
+            truncated: (data, type) => {
+                if (type !== 'display') return data;
                 if (!data) return '—';
                 const str = String(data);
-                return str.length > 60 ? `<span title="${str}">${str.substring(0, 60)}…</span>` : str;
+                return str.length > 60
+                    ? `<span title="${escapeAttr(str)}">${escapeHtml(str.substring(0, 60))}…</span>`
+                    : escapeHtml(str);
             },
             monoCode: (data) => {
                 if (!data) return '—';
-                return `<span class="font-mono text-xs text-accent-600">${data}</span>`;
+                return `<span class="font-mono text-xs text-accent-600">${escapeHtml(data)}</span>`;
             },
             // ⚠️ `DD/MM/YYYY HH:mm`, FIXE — pas `dateStyle: 'short'`.
             //
@@ -3408,7 +3422,7 @@ export default class extends Controller {
                 const safe = /^#[0-9a-fA-F]{3,8}$/.test(String(data)) ? data : '#64748b';
                 return `<div class="flex items-center gap-2">
                     <span class="inline-block w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" style="background-color: ${safe};"></span>
-                    <span class="font-mono text-xs text-slate-600 dark:text-slate-400">${data}</span>
+                    <span class="font-mono text-xs text-slate-600 dark:text-slate-400">${escapeHtml(data)}</span>
                 </div>`;
             },
             booleanBadge: (data) => {
@@ -3469,9 +3483,10 @@ export default class extends Controller {
                 if (!Array.isArray(data) || data.length === 0) {
                     return '<span class="text-slate-400">—</span>';
                 }
-                const escape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                // The shared `escapeHtml`: the local copy carried a `/"/g` literal whose lone quote
+                // threw core-bundle's `JsTranslationScanner` into string mode for the rest of the file.
                 return data.map((s) =>
-                    `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-accent-50 text-accent-700 ring-1 ring-accent-200 dark:bg-accent-900/30 dark:text-accent-300 dark:ring-accent-800 mr-1 mb-0.5">${escape(s)}</span>`
+                    `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-accent-50 text-accent-700 ring-1 ring-accent-200 dark:bg-accent-900/30 dark:text-accent-300 dark:ring-accent-800 mr-1 mb-0.5">${escapeHtml(s)}</span>`
                 ).join('');
             },
             fileSize: (data) => {
@@ -3497,14 +3512,19 @@ export default class extends Controller {
                 const col = this._columns[meta.col - this._leadingColumns];
                 const suffix = row?.currency || col?.suffix || '';
                 const formatted = n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                return suffix ? `${formatted} ${suffix}` : formatted;
+                // The suffix is the row's own currency code: data, so escaped.
+                return suffix ? `${formatted} ${escapeHtml(suffix)}` : formatted;
             },
             // Plain numbers without suffix (quantities, raw subtotals).
             country: (data) => {
                 if (!data) return '—';
                 const code = String(data).toUpperCase();
-                return this.countryNamesValue[code] || code;
+                return escapeHtml(this.countryNamesValue[code] || code);
             },
+            // HTML the SERVER produced and vouches for — never a value someone typed. The one
+            // renderer that writes its value as is: a column asks for it by name, and its provider
+            // says in a comment why the source is safe.
+            html: (data) => (data === null || data === undefined ? '' : String(data)),
         };
 
         if (renderers[renderName]) {
@@ -3516,7 +3536,26 @@ export default class extends Controller {
         // application side and resolved here. Cf. `registerRenderers()` in `../renderers`.
         const factory = getRegisteredRenderers()[renderName];
 
-        return factory ? factory(this) : null;
+        // An unknown name falls back to the text renderer: before, `null` let DataTables write
+        // the raw value — a typo in a provider became an injection point.
+        return factory ? factory(this) : this._textRenderer();
+    }
+
+    /**
+     * The renderer of a column that names none: the value as TEXT for display, raw for sorting and
+     * filtering. `null` / `undefined` are returned as is so `defaultContent` still applies.
+     *
+     * @returns {(data: unknown, type: string) => unknown}
+     */
+    _textRenderer() {
+        return (data, type) => {
+            if (type !== 'display' || data === null || data === undefined) {
+                return data;
+            }
+
+            // `String()` of the value, as DataTables printed it before — only escaped.
+            return escapeHtml(data);
+        };
     }
 
     // ── Bulk selection ─────────────────────────────────────────
@@ -3864,19 +3903,19 @@ export default class extends Controller {
             const classes = `action-btn ${item.class || 'text-slate-500 hover:text-accent-600 dark:text-slate-400 dark:hover:text-accent-400'}`;
             if (item.method === 'POST') {
                 return this._renderPostForm(item, `
-                    <button type="submit" class="${classes}"
+                    <button type="submit" class="${escapeAttr(classes)}"
                             data-controller="ui--tooltip"
-                            data-ui--tooltip-text-value="${item.label}"
-                            title="${item.label}"
-                            aria-label="${item.label}">
+                            data-ui--tooltip-text-value="${escapeAttr(item.label)}"
+                            title="${escapeAttr(item.label)}"
+                            aria-label="${escapeAttr(item.label)}">
                         ${item.icon}
                     </button>`);
             }
-            return `<a href="${item.url}" class="${classes}"${item.preview ? ' data-dt-preview' : ''}
+            return `<a href="${escapeAttr(item.url)}" class="${escapeAttr(classes)}"${item.preview ? ' data-dt-preview' : ''}
                        data-controller="ui--tooltip"
-                       data-ui--tooltip-text-value="${item.label}"
-                       title="${item.label}"
-                       aria-label="${item.label}">${item.icon}</a>`;
+                       data-ui--tooltip-text-value="${escapeAttr(item.label)}"
+                       title="${escapeAttr(item.label)}"
+                       aria-label="${escapeAttr(item.label)}">${item.icon}</a>`;
         });
         return `<div class="flex items-center justify-end gap-1">${html.join('')}</div>`;
     }
@@ -3890,14 +3929,14 @@ export default class extends Controller {
 
             if (item.method === 'POST') {
                 return this._renderPostForm(item, `
-                    <button type="submit" class="${classes}">
+                    <button type="submit" class="${escapeAttr(classes)}">
                         <span class="w-4 text-center">${item.icon}</span>
-                        ${item.label}
+                        ${escapeHtml(item.label)}
                     </button>`);
             }
-            return `<a href="${item.url}" class="${classes}"${item.preview ? ' data-dt-preview' : ''}>
+            return `<a href="${escapeAttr(item.url)}" class="${escapeAttr(classes)}"${item.preview ? ' data-dt-preview' : ''}>
                         <span class="w-4 text-center">${item.icon}</span>
-                        ${item.label}
+                        ${escapeHtml(item.label)}
                     </a>`;
         });
 
@@ -3921,14 +3960,14 @@ export default class extends Controller {
             : '';
 
         return `
-            <form method="post" action="${item.url}" class="inline"
+            <form method="post" action="${escapeAttr(item.url)}" class="inline"
                   data-controller="ui--modal"
                   data-action="submit->ui--modal#intercept"
                   data-ui--modal-title-value="${this._escAttr(this._modalText(item, 'title'))}"
                   data-ui--modal-message-value="${this._escAttr(this._modalText(item, 'message'))}"
                   data-ui--modal-confirm-label-value="${this._escAttr(this._modalText(item, 'confirm'))}"
                   data-ui--modal-cancel-label-value="${this._escAttr(this.t('datatable.confirm.cancel'))}"
-                  data-ui--modal-confirm-variant-value="${item.variant || 'danger'}">
+                  data-ui--modal-confirm-variant-value="${escapeAttr(item.variant || 'danger')}">
                 ${tokenInput}
                 ${buttonHtml}
             </form>`;
@@ -3997,7 +4036,7 @@ export default class extends Controller {
     }
 
     _escAttr(str) {
-        return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return escapeAttr(str);
     }
 
     // Read by `services/condition`, never by `new Function`: a CSP without 'unsafe-eval' refused
@@ -4012,7 +4051,10 @@ export default class extends Controller {
     }
 
     generateUrl(route, row) {
-        return route.replace(/\{(\w+)\}/g, (match, key) => row[key] ?? match);
+        // Each value is percent-encoded: a row field must neither leave its path segment (`/`,
+        // `?`, `#`) nor, once in an `href`, close the attribute. `{email}` in `?_switch_user=`
+        // also keeps its `+`, which an unencoded query string reads as a space.
+        return route.replace(/\{(\w+)\}/g, (match, key) => (row[key] === null || row[key] === undefined ? match : encodePathSegment(row[key])));
     }
 
     getFaIcon(name) {

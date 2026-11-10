@@ -52,12 +52,15 @@ final class AssetTranslationKeysTest extends TestCase
     /**
      * The dynamic calls, listed rather than forbidden — `this.t(labelKey)` is how the preferences
      * panel labels its own buttons. Pinning the count means a new one has to be looked at.
+     *
+     * ⚠️ Seven since 3.1.1, not eight: the eighth was a COMMENT (« `this.t()` returns the raw key »),
+     * read as code because a `/"/g` literal in `chipList` had thrown the scanner into string mode.
      */
     public function testTheDynamicCallsAreTheKnownOnes(): void
     {
         $scan = new JsTranslationScanner()->scan(\dirname(__DIR__, 2).'/assets');
 
-        self::assertCount(8, $scan->dynamicCalls(), \sprintf(
+        self::assertCount(7, $scan->dynamicCalls(), \sprintf(
             "A call whose key cannot be read has appeared or gone:\n  - %s",
             implode("\n  - ", $this->shorten($scan->dynamicCalls())),
         ));
