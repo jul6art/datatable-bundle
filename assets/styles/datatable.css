@@ -245,12 +245,11 @@ table.dataTable tbody tr:last-child td {
 }
 
 /* ── SSR tables (visual parity with datatables) ──────────
- * Server-rendered SIRH lists that intentionally stay SSR (confidential
- * §13/§16 data, self-service "mine" lists, portal directory — cf.
- * claude_project.md) reuse the EXACT thead / cell / row treatment of
+ * Server-rendered lists that intentionally stay SSR (confidential data,
+ * self-service "mine" lists, portal directory) reuse the EXACT thead / cell / row treatment of
  * `table.dataTable` so the two look identical. They are NOT sortable, so
  * the header keeps the default cursor and no sort affordance.
- * Pair with `_partials/_ssr_table.html.twig`. Rapport 2026-06-18-2 #design.
+ * Pair with `_partials/_ssr_table.html.twig`.
  */
 
 table.ssr-datatable {
@@ -827,7 +826,7 @@ table.dataTable > tbody > tr.child span.dtr-data {
 
 .dt-mobile-filter-select,
 .dt-mobile-filter-input {
-    /* P1 (rapport 2026-05-21) — hauteur réduite (py-2 ≈ 38px) pour s'aligner
+    /* Hauteur réduite (py-2 ≈ 38px) pour s'aligner
        sur le Select2 single (h-[38px]) et ne pas paraître trop haut. */
     @apply w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-700 shadow-sm;
     @apply focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500;

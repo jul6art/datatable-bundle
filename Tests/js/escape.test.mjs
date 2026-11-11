@@ -1,4 +1,4 @@
-// The escaping every renderer of the table relies on (audit 2026-11-10, S9).
+// The escaping every renderer of the table relies on.
 //
 // Run with Node alone, no dependency: `node --test Tests/js/`.
 

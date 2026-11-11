@@ -10,8 +10,7 @@
 
 .select2-container--default .select2-selection--single .select2-selection__rendered {
     /* Reserve enough room on the right for [clear button + gap + arrow]
-     * — prevents the clear button from overlapping the dropdown arrow.
-     * Cf. `docs/corrections/2026-05-09.md` § 6. */
+     * — prevents the clear button from overlapping the dropdown arrow. */
     @apply text-slate-900 dark:text-slate-100 leading-[36px] px-3 pr-14;
 }
 
@@ -29,7 +28,7 @@
  * vertical via `top:50% + translateY(-50%)`, et on réserve la place de
  * la flèche via `right` explicite. La flèche spanne ~20px à partir de
  * `right: 8px` ; donc on place la croix à `right: 32px` pour laisser
- * 4px de marge entre les deux. Cf. `docs/corrections/2026-05-10-2.md` § P16. */
+ * 4px de marge entre les deux. */
 .select2-container--default .select2-selection--single .select2-selection__clear {
     @apply text-slate-400 hover:text-red-500 cursor-pointer transition-colors;
     width: 20px;
@@ -89,7 +88,7 @@
  * top of the accent ring). Select2 adds `.select2-container--focus` on any
  * focus; it has the SAME specificity as the working `--open` rule, so it
  * reliably overrides the base slate border — a plain `:focus` pseudo did not
- * win (the base border stayed). Rapport 2026-06-06-3 § A (dark + light). */
+ * win (the base border stayed), in dark and light alike. */
 .select2-container--default.select2-container--open .select2-selection--single,
 .select2-container--default.select2-container--focus .select2-selection--single,
 .select2-container--default .select2-selection--single:focus,
@@ -99,7 +98,7 @@
 }
 
 /* ── Multiple select ─────────────────────────────────── */
-/* P8 (rapport 2026-05-20) — chips plus lisibles : conteneur en flex-wrap
+/* Chips plus lisibles : conteneur en flex-wrap
    pour un alignement vertical propre des chips, padding/espacements
    réguliers, et croix de suppression placée À DROITE du label (au lieu
    de la position par défaut Select2 à gauche) avec une zone de clic plus
@@ -213,8 +212,7 @@
 
 .dt-filter-row .select2-container--default .select2-selection--single .select2-selection__rendered {
     /* Right padding reserves room for [clear button + gap + arrow] so
-     * the rendered label never slides under them.
-     * Cf. `docs/corrections/2026-05-09.md` § 6. */
+     * the rendered label never slides under them. */
     @apply leading-[32px] pl-2.5 pr-12 text-xs;
 }
 
@@ -236,13 +234,13 @@
 }
 
 /* ── Mobile filter sheet — compact Select2 to save vertical space ─
-   Cf. `docs/corrections/2026-05-23.md` § C.4. The drawer can stack
+   The drawer can stack
    6+ filters; trimming each from 38px to 32px keeps the user from
    scrolling within the sheet on small viewports. */
 
 .dt-mobile-filter-sheet .select2-container--default .select2-selection--single {
     @apply h-[32px];
-    /* P0 (report 2026-05-23-2 § B.1) — use flexbox to vertically
+    /* Use flexbox to vertically
      * centre the rendered text. `leading-[30px]` did not propagate
      * reliably to the placeholder sub-span across Select2 builds,
      * which made the value look like it was falling toward the top.

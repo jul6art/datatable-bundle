@@ -46,7 +46,7 @@ export default class extends Controller {
 
         // ⚠️ The skeleton is the only HTML here: the title, the message and the two labels are set
         // with `textContent`. The message names the row it acts on (« Supprimer « %subject% » ? »),
-        // and that subject is data someone typed (audit 2026-11-10, S9).
+        // and that subject is data someone typed.
         const overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
         overlay.innerHTML = `

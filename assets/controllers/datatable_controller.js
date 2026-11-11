@@ -82,7 +82,7 @@ export default class extends Controller {
         customRoleLabels: { type: Object, default: {} },
         // Row field naming the record a confirm modal is about. Optional: when
         // empty, `_rowSubject()` probes the usual label fields. Set it only when
-        // the right label is not among them (rapport 2026-08-05 § P2).
+        // the right label is not among them.
         subjectField: { type: String, default: '' },
         // The IRI prefix a Mercure event must carry to concern this table, when the collection lives
         // at another address than its items: `/api/moderation/galleries` lists galleries whose IRI
@@ -1934,7 +1934,7 @@ export default class extends Controller {
             if (value === undefined || value === '') return;
 
             if (select.dataset.filterType === 'api') {
-                // P2 (report 2026-05-21) — option is created with the raw
+                // The option is created with the raw
                 // value (IRI/id) as label, then resolved to a readable label.
                 const opt = new Option(value, value, true, true);
                 $(select).append(opt).trigger('change.select2');
@@ -2234,7 +2234,7 @@ export default class extends Controller {
                         opt.textContent = activeVal;
                         opt.selected = true;
                         select.appendChild(opt);
-                        // P2 (report 2026-05-21) — resolve the IRI/id to its label.
+                        // Resolve the IRI/id to its label.
                         this._resolveFilterOptionLabel(select, activeVal, opt);
                     }
                 }
@@ -2271,7 +2271,6 @@ export default class extends Controller {
             // Collect filter values from mobile fields. <input type="date">
             // for `[after]`/`[before]` => convert civil local date to UTC
             // ISO so the API DateFilter respects the browser timezone.
-            // Cf. report 2026-05-23 § B.4.
             body.querySelectorAll('select, input').forEach(el => {
                 const param = el.dataset.filterParam;
                 if (!param) return;
@@ -2550,7 +2549,7 @@ export default class extends Controller {
     }
 
     /**
-     * P2 (rapport 2026-05-21) — resolve an active AJAX-filter value (IRI or
+     * Resolves an active AJAX-filter value (IRI or
      * bare id) to its human-readable label and patch the Select2 option text,
      * so a restored filter shows e.g. "VIP" instead of "/api/tags/12" or "12".
      */
@@ -2697,7 +2696,6 @@ export default class extends Controller {
      * the selected project. Reads the parent select's current value (works
      * before the mobile "Apply", falls back to the active filter). No extra
      * SQL — the param filters the autocomplete request already issued.
-     * Cf. `docs/corrections/2026-06-14-3.md` P1.
      */
     _applyDependentScope(select, query) {
         const dependsOn = select.dataset.filterDependsOn;
@@ -2902,7 +2900,7 @@ export default class extends Controller {
         return String(value).padStart(2, '0');
     }
 
-    // ── Date timezone helpers (report 2026-05-23 § B.4) ────────
+    // ── Date timezone helpers ────────
     //
     // <input type="date"> renders a "civil" date (YYYY-MM-DD) with no
     // timezone info. API Platform's DateFilter compares it against UTC
@@ -2929,10 +2927,10 @@ export default class extends Controller {
 
     /**
      * Builds the value sent to the API for a date-range bound, honouring
-     * the column granularity (cf. report 2026-06-14-2 § P2):
+     * the column granularity:
      *   - `'datetime'` columns (e.g. `createdAt`) — convert the civil date
      *     to a UTC instant so the API DateFilter respects the browser
-     *     timezone (rapport 2026-05-23 § B.4).
+     *     timezone.
      *   - `'date'` columns (default — `date_immutable`) — send the raw
      *     `YYYY-MM-DD`. Converting to UTC would shift the bound across a day
      *     boundary (the API binds the value as a date, dropping the time),
@@ -2964,7 +2962,7 @@ export default class extends Controller {
     // ── Columns ────────────────────────────────────────────────
 
     buildColumns() {
-        // P0 (report 2026-05-23 § C.1) — numeric columns (currency,
+        // Numeric columns (currency,
         // number2, percent0) must be right-aligned with tabular-nums so
         // large amounts line up vertically for visual scan. We inject
         // the `dt-cell-numeric` class automatically; CSS handles the
@@ -2978,8 +2976,8 @@ export default class extends Controller {
                 data: col.data,
                 title: col.title,
                 // ⚠️ Never `null`: without a renderer, DataTables writes the raw value with
-                // `innerHTML`, and a name typed as `<img onerror=…>` runs in the reader's session
-                // (audit 2026-11-10, S9). A column without one gets the text renderer.
+                // `innerHTML`, and a name typed as `<img onerror=…>` runs in the reader's session.
+                // A column without one gets the text renderer.
                 render: col.render ? this.getRenderer(col.render) : this._textRenderer(),
                 responsivePriority: col.responsivePriority || 5,
                 defaultContent: col.defaultContent || '',
@@ -3291,7 +3289,7 @@ export default class extends Controller {
     getRenderer(renderName) {
         const renderers = {
             // ⚠️ Every `${…}` below that carries row data is escaped: the name and the initials are
-            // typed by the user themselves, at sign-up (audit 2026-11-10, S9).
+            // typed by the user themselves, at sign-up.
             userNameWithAvatar: (data, type, row) => {
                 if (type !== 'display') return data;
                 const initials = (row.firstName?.charAt(0) || '') + (row.lastName?.charAt(0) || '');
@@ -3399,7 +3397,7 @@ export default class extends Controller {
                 return `${this._pad2(d.getDate())}/${this._pad2(d.getMonth() + 1)}/${d.getFullYear()}`
                     + ` ${this._pad2(d.getHours())}:${this._pad2(d.getMinutes())}`;
             },
-            // P11 (report 2026-05-31) — for pure DATE columns (Doctrine
+            // For pure DATE columns (Doctrine
             // `date_immutable`: issueDate, dueDate, deliveryDate…) format the
             // calendar date only, WITHOUT timezone conversion. `new Date(iso)`
             // parses a midnight-UTC value and shifts it locally (→ "02:00" in
@@ -3435,7 +3433,7 @@ export default class extends Controller {
             // dash for `false`), an INACTIVE row is rendered with a clearly
             // distinct red "ban" pill so deactivated products stand out in every
             // listing (product index, parent variants, collection products).
-            // Rapport 2026-06-06-3 § P4. Icon-only (no hardcoded text); the
+            // Icon-only (no hardcoded text); the
             // column header carries the meaning. `t()` provides an accessible title.
             activeBadge: (data) => {
                 const active = data === true || data === 'true' || data === 1 || data === '1';
@@ -3452,7 +3450,6 @@ export default class extends Controller {
             },
             // Pure date (no time part) — for `date_immutable` columns where
             // the TZ-aware datetime format would inject a misleading "01:00".
-            // Cf. docs/corrections/2026-05-23-4.md § #3 (bonus).
             number2: (data) => {
                 if (data === null || data === undefined || data === '') return '—';
                 const n = Number(data);
@@ -3477,7 +3474,7 @@ export default class extends Controller {
                 if (!Number.isFinite(n)) return '—';
                 return `${Math.round(n).toLocaleString('fr-FR')} %`;
             },
-            // P7 (rapport 2026-05-18) — string[] of labels rendered as
+            // A string[] of labels rendered as
             // a series of badges. Used for CRM tag labels.
             chipList: (data) => {
                 if (!Array.isArray(data) || data.length === 0) {
@@ -3748,8 +3745,8 @@ export default class extends Controller {
             message: this._bulkModalText(action, 'message', count),
             confirm: this._bulkModalText(action, 'confirm', count),
             cancel:  this.t('datatable.confirm.cancel'),
-            // Optional extra field (e.g. the owner picker for bulk-assign,
-            // audit § P29): {name, label, options:[{value,label}]}.
+            // Optional extra field (e.g. the owner picker for bulk-assign):
+            // {name, label, options:[{value,label}]}.
             input:   action.bulkInput || null,
             onConfirm: (inputValue) => {
                 if (action.bulkInput) {
@@ -3830,7 +3827,7 @@ export default class extends Controller {
         document.body.appendChild(overlay);
     }
 
-    /** Renders the optional picker (owner select) inside the bulk dialog (audit § P29). */
+    /** Renders the optional picker (owner select) inside the bulk dialog. */
     _bulkInputMarkup(input) {
         const opts = (input.options || [])
             .map(o => `<option value="${this._escAttr(String(o.value))}">${this._escAttr(String(o.label))}</option>`)
@@ -3861,8 +3858,8 @@ export default class extends Controller {
 
         // Last resort: the per-row text. It may carry `{field}` placeholders that
         // only make sense for a single row — there is none here, so strip them
-        // rather than leak "{firstName} {lastName}" to the user
-        // (rapport 2026-08-05 § P1). Declaring the action type in
+        // rather than leak "{firstName} {lastName}" to the user.
+        // Declaring the action type in
         // DatatableBulkExtension::ACTION_TYPES is what avoids landing here.
         return String(this._modalText(action, key))
             .replace(/%count%/g, String(count))
@@ -3878,7 +3875,7 @@ export default class extends Controller {
 
     renderActions(row) {
         const items = this.actionsValue
-            // `bulkOnly` actions (e.g. bulk-assign, audit § P29) have no per-row button.
+            // `bulkOnly` actions (e.g. bulk-assign) have no per-row button.
             .filter(action => !action.bulkOnly)
             .filter(action => !action.condition || this.evaluateCondition(action.condition, row))
             .map(action => ({
@@ -4008,8 +4005,8 @@ export default class extends Controller {
 
     /**
      * Human label for the record a confirm modal is about, so a generic message
-     * can name it instead of falling back to the neutral "this item" wording
-     * (rapport 2026-08-05 § P2). Ordered probe, same spirit as
+     * can name it instead of falling back to the neutral "this item" wording.
+     * Ordered probe, same spirit as
      * NotificationService::buildTranslationParams server-side (getFullName then
      * getName). Returns null when nothing usable is on the row.
      */
@@ -4077,16 +4074,16 @@ export default class extends Controller {
             columns: '<i class="fa-solid fa-table-columns"></i>',
             'table-columns': '<i class="fa-solid fa-table-columns"></i>',
             'folder-open': '<i class="fa-solid fa-folder-open"></i>',
-            // P1 (rapport 2026-05-23-4 §§ #4/#7) — detach actions.
+            // Detach actions.
             unlink: '<i class="fa-solid fa-link-slash"></i>',
-            // SIRH datatable lifecycle actions (rapport 2026-06-18-2 P4).
+            // HR datatable lifecycle actions.
             check: '<i class="fa-solid fa-check"></i>',
             xmark: '<i class="fa-solid fa-xmark"></i>',
             clock: '<i class="fa-solid fa-clock"></i>',
             rocket: '<i class="fa-solid fa-rocket"></i>',
             bullhorn: '<i class="fa-solid fa-bullhorn"></i>',
             lock: '<i class="fa-solid fa-lock"></i>',
-            // Employee offboarding (« Sortir ») — rapport 2026-06-21 P7.
+            // Employee offboarding (« Sortir »).
             'right-from-bracket': '<i class="fa-solid fa-right-from-bracket"></i>',
             // Activate, revise, renew — asked for by cereezer's tables, which showed
             // the question-mark fallback (cereezer, 2026-10-04).

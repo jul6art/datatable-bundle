@@ -3,7 +3,7 @@
  *
  * ⚠️ Every value that comes from a row — a name, a label, an IRI the resolver fetched — is data typed
  * by someone, and DataTables writes a cell with `innerHTML`. Rendered unescaped, a first name such as
- * `<img src=x onerror=…>` runs in the session of whoever opens the list (audit 2026-11-10, S9).
+ * `<img src=x onerror=…>` runs in the session of whoever opens the list.
  *
  * Pure functions on strings, with no DOM: the same output in the browser and under `node --test`.
  */

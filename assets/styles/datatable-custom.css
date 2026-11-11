@@ -92,7 +92,7 @@ table.dataTable tbody tr {
 }
 
 /* ----------------------------------------------------------------------
- * P4 (rapport 2026-05-17-2, revu 2026-05-18) — pastille « expand » sur
+ * Pastille « expand » sur
  * les rows ayant du contenu masqué par DataTables Responsive.
  *
  * Contraintes UX :
@@ -148,7 +148,7 @@ table.dataTable.dtr-inline.collapsed > tbody > tr.dtr-expanded:has(td.dtr-hidden
     color: #ffffff;
 }
 
-/* Numeric columns alignment (rapport 2026-05-23 § C.1).
+/* Numeric columns alignment.
  * Applied automatically by `buildColumns()` when col.render is one of
  * `currency`, `number2`, `percent0`. Right-align + tabular-nums so the
  * digits line up vertically across rows, making large amounts readable

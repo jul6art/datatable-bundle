@@ -224,8 +224,7 @@ abstract class AbstractDataTableConfigProvider
      * appended to the autocomplete request under `dependsParam` — e.g. the
      * task filter scoped to the selected project (`dependsOn: 'project'`,
      * `dependsParam: 'project'`). No extra SQL: the param filters the existing
-     * autocomplete query. Changing the parent clears this filter. Cf.
-     * `docs/corrections/2026-06-14-3.md` P1.
+     * autocomplete query. Changing the parent clears this filter.
      *
      * `orderKey` is the property the suggestions are sorted on, ascending: the request carries
      * `order[<orderKey>]=asc`. It defaults to `textKey` — what the user reads is what the list is

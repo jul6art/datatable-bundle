@@ -55,7 +55,7 @@
  *
  * A column without a renderer is drawn as text, escaped. HTML that the server produced and vouches
  * for goes through the built-in `html` renderer, asked for by name (`render: 'html'`) — never
- * through a renderer that skips the escaping (audit 2026-11-10, S9).
+ * through a renderer that skips the escaping.
  */
 
 import { escapeHtml } from '../services/escape';

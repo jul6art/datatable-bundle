@@ -24,12 +24,12 @@ export default class extends Controller {
         secondaryKey: { type: String, default: '' },
         allowClear: { type: Boolean, default: true },
         minimumInputLength: { type: Number, default: 0 },
-        // P5 (rapport 2026-05-17-2) — `allowTags: true` allows entering
+        // `allowTags: true` allows entering
         // a free value that is not in the AJAX results (typical for
         // `carrier`: combo with existing "DHL / UPS / Chronopost" plus
         // a custom value for a new carrier).
         allowTags: { type: Boolean, default: false },
-        // Dependent picker (rapport 2026-06-13-2 § P1) — when set, the AJAX
+        // Dependent picker — when set, the AJAX
         // search appends the LIVE value of a sibling select (matched by the
         // `dependsOn` CSS selector inside the same form) under the
         // `dependsParam` query key, so e.g. the task list is filtered by the
@@ -108,7 +108,7 @@ export default class extends Controller {
             // the project registered Select2's locale file, and two products out of three did
             // not (see `select2-language.js`).
             language: select2Language(),
-            // P5 (rapport 2026-05-17-2) — tags: true autorise les
+            // tags: true autorise les
             // valeurs libres (pour les combos AJAX + free-text mix
             // comme le champ `carrier` du BL).
             tags: this.allowTagsValue,
@@ -165,7 +165,7 @@ export default class extends Controller {
 
         // Dependent picker: when the parent select changes, clear this one so a
         // value belonging to the previous parent (e.g. a task of another
-        // project) cannot stay selected. Cf. rapport 2026-06-13-2 § P1.
+        // project) cannot stay selected.
         if (this.dependsOnValue) {
             const parent = this._dependsOnElement();
             if (parent) {
@@ -182,7 +182,7 @@ export default class extends Controller {
     /**
      * Builds a result label: the `textKey` value, optionally followed by the
      * `secondaryKey` value in parentheses (e.g. "Widget A (SKU-001)") so a
-     * reference / barcode match is visible. Cf. P-F (rapport 2026-05-31-2).
+     * reference / barcode match is visible.
      */
     _formatText(item) {
         const base = item[this.textKeyValue] ?? item.name ?? String(item.id);
