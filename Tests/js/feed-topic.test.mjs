@@ -10,12 +10,12 @@ import { isOrganizationFeedTopic } from '../../assets/services/feed-topic.js';
 
 test('an organisation feed is one, prefixed or not', () => {
     assert.equal(isOrganizationFeedTopic('/organizations/7/feed'), true);
-    assert.equal(isOrganizationFeedTopic('/cereezer/organizations/7/feed'), true);
+    assert.equal(isOrganizationFeedTopic('/shop/organizations/7/feed'), true);
     assert.equal(isOrganizationFeedTopic('/a/b/organizations/abc/feed'), true);
 });
 
 test('the admin and global feeds are not an organisation feed', () => {
-    for (const topic of ['/admin/feed', '/global/feed', '/cereezer/admin/feed', '/platform/feed', '/organizations/feed', '/organizations/7/feed/extra', '', 'organizations/7/feed']) {
+    for (const topic of ['/admin/feed', '/global/feed', '/shop/admin/feed', '/platform/feed', '/organizations/feed', '/organizations/7/feed/extra', '', 'organizations/7/feed']) {
         assert.equal(isOrganizationFeedTopic(topic), false, topic);
     }
 });

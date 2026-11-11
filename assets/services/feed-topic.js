@@ -1,6 +1,6 @@
 /**
  * Whether a feed topic is an organisation's: `/organizations/7/feed`, or the same topic in an
- * application's corner of a shared hub — `/cereezer/organizations/7/feed` (push-bundle 3.2,
+ * application's corner of a shared hub — `/shop/organizations/7/feed` (push-bundle 3.2,
  * `push.mercure.topic_prefix`).
  *
  * ⚠️ Not `startsWith('/organizations/')`: with a prefix, every organisation event failed it, and an

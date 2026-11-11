@@ -1769,7 +1769,7 @@ export default class extends Controller {
      * we fall back to the previous type-based matching (opt-in filter).
      *
      * The topic may carry the application's prefix on a shared hub
-     * (`/cereezer/organizations/7/feed`): see `isOrganizationFeedTopic()`.
+     * (`/shop/organizations/7/feed`): see `isOrganizationFeedTopic()`.
      */
     _feedScopeMatches(payload) {
         const scope = this.element.dataset.datatableScope;
