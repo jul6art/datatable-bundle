@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  * None of the three request builders — the form picker (`select2_controller.js`), the column filter
  * and the mobile filter sheet (`datatable_controller.js`) — sent an order: the collection answered in
  * its own default order, the TABLE's, most often "newest first". Sites came back as "Client 070 —
- * site 2", "Client 070 — site 1", "Client 069 — site 3"… (cereezer report 2026-10-03, P2).
+ * site 2", "Client 070 — site 1", "Client 069 — site 3"… (cereezer, 2026-10-03).
  *
  * The request now carries `order[<key>]=asc`, where the key is the one DISPLAYED unless the caller
  * names another (`orderKey`), and `'none'` opts out — for a list whose server order IS the meaning.

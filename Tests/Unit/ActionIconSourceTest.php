@@ -13,8 +13,8 @@ use PHPUnit\Framework\TestCase;
  *
  * `getFaIcon()` resolves an action's `icon` name through a fixed table and falls back on
  * `fa-circle-question` for anything it does not know. Nothing fails: the button renders, it works, and
- * it shows a question mark. cereezer's quote and contract tables asked for `rotate-right` ("revise",
- * "renew") and `play` ("activate") and showed exactly that (cereezer review of 2026-10-04, which now
+ * it shows a question mark. cereezer's tables asked for `rotate-right` ("revise",
+ * "renew") and `play` ("activate") and showed exactly that (cereezer, 2026-10-04, which now
  * guards its own providers against this table).
  *
  * ## Why a source guard rather than a browser test

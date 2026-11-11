@@ -45,7 +45,7 @@ export function liveFormParams() {
  *
  * `orderKey` asks for the suggestions in ascending order on that key (`order[<key>]=asc`). Without
  * it the collection answers in its own default order — the TABLE's, most often "newest first" —
- * and the user scrolls a list sorted by nothing they can see (cereezer report 2026-10-03, P2).
+ * and the user scrolls a list sorted by nothing they can see (cereezer, 2026-10-03).
  * `null` (or `'none'` resolved by the caller) sends no order.
  *
  * @param {{ searchParam: string, term?: string|null, orderKey?: string|null }} options

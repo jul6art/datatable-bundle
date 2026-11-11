@@ -1289,7 +1289,7 @@ export default class extends Controller {
     _openingFilters(saved) {
         // A term handed by the page ("see all 7 results") opens the table on that term ALONE: a
         // status filter remembered from earlier, or a starred view, would show "2 of 2" under a
-        // link that promised 7 (cegeta ADR-0037). The user's views are one click away.
+        // link that promised 7 (cegeta). The user's views are one click away.
         if ('' !== this.initialSearchValue) {
             return {};
         }
@@ -1392,7 +1392,7 @@ export default class extends Controller {
 
         // The page's term wins over the remembered one: a "see all 47 results" link is what the
         // user just clicked, and opening on the previous visit's term — or on none — would show a
-        // count that matches nothing on screen (cegeta ADR-0037). First build only: a column drag
+        // count that matches nothing on screen (cegeta). First build only: a column drag
         // must not bring the link's term back over what was typed since.
         const openingSearch = !rebuild && '' !== this.initialSearchValue
             ? this.initialSearchValue
@@ -4088,8 +4088,8 @@ export default class extends Controller {
             lock: '<i class="fa-solid fa-lock"></i>',
             // Employee offboarding (« Sortir ») — rapport 2026-06-21 P7.
             'right-from-bracket': '<i class="fa-solid fa-right-from-bracket"></i>',
-            // Activate, revise, renew — asked for by cereezer's contract and quote tables, which showed
-            // the question-mark fallback (cereezer review of 2026-10-04).
+            // Activate, revise, renew — asked for by cereezer's tables, which showed
+            // the question-mark fallback (cereezer, 2026-10-04).
             play: '<i class="fa-solid fa-play"></i>',
             'rotate-right': '<i class="fa-solid fa-rotate-right"></i>',
         };
@@ -4172,7 +4172,7 @@ export default class extends Controller {
     /**
      * A column's value, read the way DataTables reads it for the table: through its DOTTED path (`user.email` walks
      * `row.user.email`). The card read `row['user.email']` — a key that does not exist — so a nested primary column
-     * showed a dash and nested secondary fields vanished, while the desktop table was fine (cegeta ADR-0035).
+     * showed a dash and nested secondary fields vanished, while the desktop table was fine (cegeta).
      *
      * ⚠️ A flat key that CONTAINS a dot is read as is first: JSON-LD keys and API aliases must keep working.
      */
@@ -4196,7 +4196,7 @@ export default class extends Controller {
         // read the descriptor of column -1 — undefined. Renderers that fall back to a default
         // (`iri` → `resolveField: 'name'`) kept working by luck, so the defect only surfaced on the
         // first table whose `resolveField` was something else: an asset column resolving `label`
-        // showed a dash on mobile while the desktop table showed the value (wovex, ADR-0010).
+        // showed a dash on mobile while the desktop table showed the value (cereezer).
         const all = this._columns;
         const metaCol = (col) => ({ col: all.findIndex(c => c.data === col.data) + this._leadingColumns });
 

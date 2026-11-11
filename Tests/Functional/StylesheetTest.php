@@ -520,7 +520,7 @@ final class StylesheetTest extends TestCase
      * Le bouton ⋮ du menu d'actions par ligne est marqué `data-dt-dropdown-toggle`, et c'est le
      * bundle qui rend ce markup qui DOIT écouter le clic : sans l'écouteur, le bouton s'affiche et
      * ne fait rien — pas d'erreur, pas d'indice, une liste qui semble n'avoir aucune action
-     * (signalé sur wovex le 2026-08-23 ; la fonction n'existait que dans le `app.js` de superp).
+     * (signalé sur cereezer le 2026-08-23 ; la fonction n'existait que dans le `app.js` de superp).
      *
      * ⚠️ Jamais `onclick="…"` : un gestionnaire inline n'a pas de nonce, une CSP le refuse, et le
      * menu ne s'ouvre plus le jour où elle s'applique (2.11).

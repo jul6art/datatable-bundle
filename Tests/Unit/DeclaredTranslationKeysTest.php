@@ -81,17 +81,17 @@ final class DeclaredTranslationKeysTest extends TestCase
     /**
      * ⚠️ The key prefix is the CATALOGUE's, not a path inside a JSON tree. It used to be both:
      * `path` said where to nest the dictionary, `key_prefix` where to read it from. There is no
-     * tree any more, so `superp`'s `sirh.expense.status.` prefix is simply the key it always was.
+     * tree any more, so a consumer's `hr.expense.status.` prefix is simply the key it always was.
      */
     public function testThePrefixIsTheCatalogueKeyAndNotAPath(): void
     {
         $keys = new DeclaredTranslationKeys([
-            'sirh_expense_status' => ['key_prefix' => 'sirh.expense.status.', 'keys' => ['draft']],
+            'hr_expense_status' => ['key_prefix' => 'hr.expense.status.', 'keys' => ['draft']],
         ])->keys();
 
-        self::assertSame(['sirh.expense.status.draft'], array_values(array_filter(
+        self::assertSame(['hr.expense.status.draft'], array_values(array_filter(
             $keys,
-            static fn (string $key): bool => str_starts_with($key, 'sirh.'),
+            static fn (string $key): bool => str_starts_with($key, 'hr.'),
         )));
     }
 

@@ -36,7 +36,7 @@ export default class extends Controller {
         // currently selected project. Changing the parent clears this select.
         dependsOn: { type: String, default: '' },
         dependsParam: { type: String, default: '' },
-        // The key the suggestions are sorted on, ascending (cereezer report 2026-10-03, P2). Empty
+        // The key the suggestions are sorted on, ascending (cereezer, 2026-10-03). Empty
         // = the displayed `textKey`; `'none'` sends no order, for a list whose server order IS the
         // meaning. An unsorted list came back newest first.
         orderKey: { type: String, default: '' },

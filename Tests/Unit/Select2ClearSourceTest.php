@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  * the button on and no placeholder, it throws "Cannot read properties of undefined (reading 'id')"
  * on every click and clears nothing. The controller turned the button on BY DEFAULT and only had a
  * placeholder when the page passed one: every Select2 of two back-offices out of three offered a
- * dead button (cereezer report 2026-09-22 § P1-a).
+ * dead button (cereezer, 2026-09-22).
  *
  * ## Why a source guard rather than a browser test
  *

@@ -95,8 +95,8 @@ final class DataTableTest extends AbstractFunctionalTestCase
     }
 
     /**
-     * The suggestions are sorted on the key the filter DISPLAYS, unless it names another (cereezer
-     * report 2026-10-03, P2): an unsorted list came back newest first.
+     * The suggestions are sorted on the key the filter DISPLAYS, unless it names another (cereezer,
+     * 2026-10-03): an unsorted list came back newest first.
      */
     public function testAnApiFilterOrdersItsSuggestionsByTheDisplayedKey(): void
     {

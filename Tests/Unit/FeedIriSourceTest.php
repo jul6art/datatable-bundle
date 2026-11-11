@@ -11,8 +11,8 @@ use PHPUnit\Framework\TestCase;
  * A table can match Mercure events on another IRI than its collection's address.
  *
  * The live refresh keeps an event when its IRI starts with the table's `apiUrl`. A collection served
- * at another address than its items — devinlive's "All galleries", `/api/moderation/galleries`,
- * whose rows are `/api/galleries/{id}` — never matched: every event was dropped, silently, and the
+ * at another address than its items — a consumer's moderation list, `/api/moderation/items`,
+ * whose rows are `/api/items/{id}` — never matched: every event was dropped, silently, and the
  * table never refreshed. `feed-iri-value` names the prefix to match instead.
  *
  * ## Why a source guard rather than a browser test

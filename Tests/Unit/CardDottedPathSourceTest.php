@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  * A column declared `user.email` renders in the desktop table — DataTables walks `row.user.email` — and rendered
  * nothing in the card: `_renderCard()` read `row['user.email']`, a key that does not exist, so the primary line showed a
  * dash and every nested secondary field vanished. Nothing failed: `undefined` is not an error, and the desktop table
- * was fine (cegeta ADR-0035, the member table under 640 px).
+ * was fine (cegeta, a table under 640 px).
  *
  * This bundle ships no JavaScript runner (same reasoning as `Select2ClearSourceTest`): what is pinned is that the card
  * no longer indexes the row by the raw path, and that the resolver it uses walks the dots.

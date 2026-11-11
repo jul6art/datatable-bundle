@@ -5,7 +5,7 @@
  * of labels: a Stimulus controller shipped inside `vendor/` cannot import the project's
  * `assets/translator.js`, so it reads through the socle's registry instead.
  *
- * The file stays here because the controllers of this bundle — and seventeen of `superp` — import
+ * The file stays here because the controllers of this bundle — and those of consumer applications — import
  * it by this path, and because `bootstrap.js` derives Stimulus identifiers from the tree.
  * Rewriting those imports would buy nothing.
  *

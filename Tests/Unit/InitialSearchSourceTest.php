@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  * A header search panel says "47 results" and links to the list, filtered by the same term. The
  * table read its opening search from `sessionStorage` only: the link landed on the unfiltered list —
  * or worse, on the term of the previous visit — and the count the user had just read matched
- * nothing on screen (cegeta ADR-0037).
+ * nothing on screen (cegeta).
  *
  * ## Why a source guard rather than a browser test
  *
@@ -60,8 +60,8 @@ final class InitialSearchSourceTest extends TestCase
     /**
      * A page's term opens the table on THAT term alone: neither the session's filters nor the
      * starred view's. "See all 7 results" landing on "1 to 2 of 2" because a status filter was
-     * still remembered from earlier is the count mismatch the link exists to avoid (cegeta
-     * ADR-0037, REVIEWER 2026-09-23).
+     * still remembered from earlier is the count mismatch the link exists to avoid (cegeta,
+     * 2026-09-23).
      */
     public function testThePagesTermOpensTheTableWithoutRememberedFilters(): void
     {
