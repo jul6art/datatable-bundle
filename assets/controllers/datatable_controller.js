@@ -8,6 +8,7 @@ import { select2Language } from '../select2-language';
 import { ajaxQuery, resolveOrderKey } from '../select2-config';
 import { installActionsDropdown } from '../services/dropdown';
 import { evaluateCondition } from '../services/condition';
+import { isOrganizationFeedTopic } from '../services/feed-topic';
 import { openPreviewSheet, closePreviewSheet } from '../services/preview-sheet';
 import { escapeHtml, escapeAttr, encodePathSegment, safeUrlPath } from '../services/escape';
 
@@ -1766,12 +1767,15 @@ export default class extends Controller {
      *
      * When no scope is declared or the payload predates the `topic` field,
      * we fall back to the previous type-based matching (opt-in filter).
+     *
+     * The topic may carry the application's prefix on a shared hub
+     * (`/cereezer/organizations/7/feed`): see `isOrganizationFeedTopic()`.
      */
     _feedScopeMatches(payload) {
         const scope = this.element.dataset.datatableScope;
         if (scope !== 'organization') return true;
         if (typeof payload.topic !== 'string' || payload.topic === '') return true;
-        return payload.topic.startsWith('/organizations/');
+        return isOrganizationFeedTopic(payload.topic);
     }
 
     _feedMatchesTable(payload) {
