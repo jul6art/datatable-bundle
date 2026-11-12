@@ -91,6 +91,31 @@ final class DoctrinePreferenceStoreTest extends AbstractFunctionalTestCase
         self::assertCount(1, $this->rows(), 'Replaced, not added to: one row per account and table.');
     }
 
+    /**
+     * The timestamps come from the base class's lifecycle callbacks, which the concrete entity
+     * inherits without declaring `#[ORM\HasLifecycleCallbacks]` itself: without them, the creation time
+     * would fail the insert and the update time would stay NULL in silence.
+     */
+    public function testTheConcreteEntityInheritsTheTimestamps(): void
+    {
+        $store = $this->store();
+        $ada = $this->account('ada@example.test');
+
+        $metadata = $this->entityManager()->getClassMetadata(TablePreference::class);
+        $createdAt = $metadata->getColumnName('createdAt');
+        $updatedAt = $metadata->getColumnName('updatedAt');
+
+        $store->write($ada, 'erp_product', '{"v":1}');
+        $created = $this->rows()[0];
+        $store->write($ada, 'erp_product', '{"v":2}');
+        $updated = $this->rows()[0];
+
+        self::assertNotNull($created[$createdAt], 'PrePersist: the creation time is set.');
+        self::assertNull($created[$updatedAt], 'Not updated yet.');
+        self::assertNotNull($updated[$updatedAt], 'PreUpdate: a second write sets the update time.');
+        self::assertSame($created[$createdAt], $updated[$createdAt], 'The creation time does not move.');
+    }
+
     public function testDeletingRemovesTheRowAndDeletingNothingIsNotAnError(): void
     {
         $store = $this->store();
