@@ -24,6 +24,8 @@
         "symfony/yaml": "^7.4 || ^8.0"
     },
     "require-dev": {
+        "doctrine/doctrine-bundle": "^2.13 || ^3.0",
+        "doctrine/orm": "^3.5",
         "friendsofphp/php-cs-fixer": "^3.95.27",
         "jul6art/dataflow-bundle": "^1.15.4",
         "phpstan/extension-installer": "^1.4.3",
@@ -39,6 +41,7 @@
         "symfony/security-csrf": "^7.4 || ^8.0",
         "symfony/translation": "^7.4 || ^8.0",
         "symfony/twig-bundle": "^7.4 || ^8.0",
+        "symfony/validator": "^7.4 || ^8.0",
         "symfony/var-dumper": "^7.4 || ^8.0",
         "twig/twig": "^3.30"
     },
@@ -86,6 +89,8 @@
         "symfony/security-csrf": "Les partials `_csrf.html.twig` et `_preferences.html.twig` appellent `csrf_token()` : sans ce paquet, la fonction n'existe pas et le rendu échoue. Le contrôleur de préférences saute alors sa vérification de jeton, `SameSite=Lax` restant la défense de base.",
         "api-platform/core": "La table lit une collection API Platform ; les conventions de filtre (`?param[after]=`) que produisent les aides de configuration sont les siennes.",
         "jul6art/api-bundle": "Les filtres que les colonnes et les filtres déclarés ici supposent côté serveur : `OrSearchFilter` pour la recherche globale, `CaseInsensitiveOrderFilter` pour le tri.",
-        "jul6art/dataflow-bundle": "DatatableViewExporter (lot 2.8) : exporte une vue de tableau en réutilisant le moteur de rapport. Sans lui, ce service n'est simplement pas enregistré."
+        "jul6art/dataflow-bundle": "DatatableViewExporter (lot 2.8) : exporte une vue de tableau en réutilisant le moteur de rapport. Sans lui, ce service n'est simplement pas enregistré.",
+        "doctrine/orm": "Le magasin Doctrine des préférences (`datatable.preferences.storage`) et l'endpoint de réordonnancement des lignes. Sans lui, ni l'un ni l'autre n'est enregistré.",
+        "doctrine/doctrine-bundle": "Le magasin Doctrine des préférences (`datatable.preferences.storage`) : l'activer sans ce paquet échoue à la compilation, avec un message qui le dit."
     }
 }

@@ -5,22 +5,29 @@ declare(strict_types=1);
 namespace Jul6Art\DatatableBundle\DependencyInjection;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use Jul6Art\DataflowBundle\Report\ReportRunner;
 use Jul6Art\DatatableBundle\Controller\DatatablePreferenceController;
 use Jul6Art\DatatableBundle\Controller\DatatableReorderController;
 use Jul6Art\DatatableBundle\DataTable\AbstractDataTableConfigProvider;
 use Jul6Art\DatatableBundle\DataTable\AdminDataTableConfig;
+use Jul6Art\DatatableBundle\Preference\DatatablePreferenceScopeInterface;
+use Jul6Art\DatatableBundle\Preference\DatatablePreferenceStoreInterface;
+use Jul6Art\DatatableBundle\Preference\Doctrine\DoctrineDatatablePreferenceStore;
 use Jul6Art\DatatableBundle\Translation\DeclaredTranslationKeys;
 use Jul6Art\DatatableBundle\Twig\DataTableCsrfExtension;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Extension\Extension;
+use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 
@@ -42,7 +49,7 @@ use Twig\Environment;
  * the PHP half of this bundle (the configuration providers) is useful to an application that
  * renders its tables some other way.
  */
-class DatatableExtension extends Extension
+class DatatableExtension extends Extension implements PrependExtensionInterface
 {
     #[\Override]
     public function load(array $configs, ContainerBuilder $container): void
@@ -80,6 +87,7 @@ class DatatableExtension extends Extension
             ->addTag('datatable.config_provider');
 
         $this->registerPreferences($loader, $container, $preferencesToken);
+        $this->registerPreferenceStorage($container, $config['preferences'] ?? null);
         $this->registerReorder($loader, $container, $reorderToken);
         $this->registerExport($loader);
 
@@ -140,6 +148,82 @@ class DatatableExtension extends Extension
                 ? new Reference('security.csrf.token_manager', ContainerInterface::NULL_ON_INVALID_REFERENCE)
                 : null)
             ->setArgument('$csrfTokenId', $tokenId);
+    }
+
+    /**
+     * The Doctrine store of the preferences (`Preference\\Doctrine`), when the application names its
+     * entity. Its own store, if it keeps one, is an alias it writes itself — loaded after this one, it
+     * wins. Scopes are found by autoconfiguration either way.
+     */
+    private function registerPreferenceStorage(ContainerBuilder $container, mixed $preferences): void
+    {
+        $container->registerForAutoconfiguration(DatatablePreferenceScopeInterface::class)
+            ->addTag('datatable.preference_scope');
+
+        [$entityClass, $userClass] = self::storageClasses($preferences);
+        if (null === $entityClass || null === $userClass) {
+            return;
+        }
+
+        if (!interface_exists(ManagerRegistry::class) || !interface_exists(EntityManagerInterface::class)) {
+            throw new \LogicException('datatable.preferences.storage needs doctrine/orm and doctrine/doctrine-bundle: install them, or bind your own DatatablePreferenceStoreInterface.');
+        }
+
+        $container->register(DoctrineDatatablePreferenceStore::class, DoctrineDatatablePreferenceStore::class)
+            ->setArguments([new Reference('doctrine'), $entityClass, $userClass, new TaggedIteratorArgument('datatable.preference_scope')]);
+        $container->setAlias(DatatablePreferenceStoreInterface::class, DoctrineDatatablePreferenceStore::class);
+    }
+
+    /**
+     * Doctrine must see the mapped superclass and know the account class: the bundle's
+     * `Preference/Doctrine` is not an `Entity/` directory auto-mapping finds, and the entity's owner
+     * targets Symfony's `UserInterface`. Prepended, so the application's own `doctrine` configuration
+     * still has the last word.
+     */
+    #[\Override]
+    public function prepend(ContainerBuilder $container): void
+    {
+        if (!$container->hasExtension('doctrine')) {
+            return;
+        }
+
+        $userClass = null;
+        foreach ($container->getExtensionConfig($this->getAlias()) as $config) {
+            [$entityClass, $configured] = self::storageClasses($config['preferences'] ?? null);
+            if (null !== $entityClass && null !== $configured) {
+                $userClass = $configured;
+            }
+        }
+        if (null === $userClass) {
+            return;
+        }
+
+        $container->prependExtensionConfig('doctrine', ['orm' => [
+            'resolve_target_entities' => [UserInterface::class => $userClass],
+            'mappings' => [
+                'Jul6ArtDatatablePreference' => [
+                    'type' => 'attribute',
+                    'is_bundle' => false,
+                    'dir' => __DIR__.'/../Preference/Doctrine',
+                    'prefix' => 'Jul6Art\\DatatableBundle\\Preference\\Doctrine',
+                ],
+            ],
+        ]]);
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string} the entity class and the account class, when both are set
+     */
+    private static function storageClasses(mixed $preferences): array
+    {
+        $storage = \is_array($preferences) && \is_array($preferences['storage'] ?? null) ? $preferences['storage'] : [];
+        $entityClass = $storage['entity_class'] ?? null;
+        $userClass = $storage['user_class'] ?? null;
+
+        return [
+            \is_string($entityClass) && '' !== $entityClass ? $entityClass : null,
+            \is_string($userClass) && '' !== $userClass ? $userClass : null,
+        ];
     }
 
     /**

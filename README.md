@@ -357,12 +357,61 @@ Each user arranges a table for themselves: which columns they see, in what order
 named **views** — a saved set of filters, one of which can open the table. Two dropdowns in the
 toolbar, one attribute in the template.
 
-This bundle interprets the preferences. It does **not** store them: persistence is a port the
-application implements, because the shape it already has for per-user data is the shape it should
-keep. A bundle that shipped an entity would force a migration on every consumer and own a table
-none of them named.
+This bundle interprets the preferences, and since 3.3.0 it can store them with Doctrine. It ships no
+entity of its own: the application keeps its table, names it, and extends a mapped superclass — so
+adopting the store forces no migration on anyone.
 
-### 1. Implement the store
+### 1. Store them — with Doctrine (since 3.3.0)
+
+The entity, in the application, carries only what is its own: the table and its unique constraint (a
+mapped superclass cannot declare table-level constraints).
+
+```php
+use Doctrine\ORM\Mapping as ORM;
+use Jul6Art\DatatableBundle\Preference\Doctrine\AbstractDatatablePreference;
+
+#[ORM\Entity]
+#[ORM\Table(name: 'datatable_preference')]
+#[ORM\UniqueConstraint(name: 'uniq_datatable_preference_owner_key', columns: ['owner_id', 'datatable_key'])]
+class DatatablePreference extends AbstractDatatablePreference
+{
+}
+```
+
+```yaml
+# config/packages/datatable.yaml
+datatable:
+    preferences:
+        storage:
+            entity_class: App\Entity\DatatablePreference
+            user_class: App\Entity\User
+```
+
+- The columns are `owner_id`, `datatable_key`, `payload`, `created_at`, `updated_at`: those of the
+  stores the applications wrote before, so an existing table is adopted as is
+  (`doctrine:migrations:diff` reports nothing).
+- `owner` targets Symfony's `UserInterface`; the bundle has Doctrine resolve it to `user_class`, so the
+  application's `User` does not change. An account of another class (a machine identity) reads and
+  writes nothing.
+- **One arrangement per account and per space**, in a multi-tenant application: the entity adds its
+  space, and a service implementing `Preference\DatatablePreferenceScopeInterface` adds it to the
+  lookup — autoconfigured, nothing to declare:
+
+```php
+final class OrganizationScope implements DatatablePreferenceScopeInterface
+{
+    public function criteria(UserInterface $user): array
+    {
+        return $user instanceof User ? ['organization' => $user->getOrganization()] : [];
+    }
+}
+```
+
+The entity sets its space when it is created (its constructor reads it from the owner).
+`doctrine/orm` and `doctrine/doctrine-bundle` are suggestions; enabling the store without them fails
+the build with a message that says so.
+
+### 1 bis. Or store them yourself
 
 ```php
 use Jul6Art\DatatableBundle\Preference\DatatablePreferenceStoreInterface;
@@ -375,6 +424,9 @@ final readonly class DatatablePreferenceStore implements DatatablePreferenceStor
     public function delete(UserInterface $user, string $key): void { /* DELETE … */ }
 }
 ```
+
+Bind it with an alias of `DatatablePreferenceStoreInterface` in `config/services.yaml`; leave
+`datatable.preferences.storage` unset.
 
 Three guarantees an implementation owes:
 

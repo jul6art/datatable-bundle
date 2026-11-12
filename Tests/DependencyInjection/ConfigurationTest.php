@@ -42,7 +42,25 @@ final class ConfigurationTest extends TestCase
                 // pour qu'un projet qui a déplacé son catalogue n'ait pas à le répéter ici.
                 'label_domain' => null,
             ],
+            // Désactivé : sans entité nommée, l'application lie son propre magasin.
+            'preferences' => ['storage' => ['entity_class' => null, 'user_class' => null]],
         ], $this->process([]));
+    }
+
+    public function testThePreferenceStorageNeedsTheAccountClassWithTheEntityClass(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessageIsOrContains('user_class is required with entity_class');
+
+        $this->process([['preferences' => ['storage' => ['entity_class' => 'App\\Entity\\DatatablePreference']]]]);
+    }
+
+    public function testThePreferenceStorageTakesBothClasses(): void
+    {
+        $preferences = $this->process([['preferences' => ['storage' => ['entity_class' => 'App\\Entity\\DatatablePreference', 'user_class' => 'App\\Entity\\User']]]])['preferences'] ?? null;
+
+        self::assertIsArray($preferences);
+        self::assertSame(['entity_class' => 'App\\Entity\\DatatablePreference', 'user_class' => 'App\\Entity\\User'], $preferences['storage'] ?? null);
     }
 
     public function testLaterConfigsOverrideEarlierOnes(): void
