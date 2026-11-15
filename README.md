@@ -859,6 +859,11 @@ are decided in one place instead of drifting between a template and a claim. `ju
 > this.stopFeed = mercureBus.onMessage((payload) => { /* … */ });
 > this.stopResync = mercureBus.onResync(() => this.reload());
 > ```
+>
+> A page that cannot use the bus — a public page with its own token endpoint, a family of channels
+> the bus does not ask for — opens its own subscription with `services/live-feed.js`, which comes
+> back the same way: `openLiveFeed({ connect, onMessage, onResync })`, where `connect()` asks the
+> token endpoint and returns the hub URL (throw to be retried, null to give up).
 
 JavaScript translations
 -----------------------
