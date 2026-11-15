@@ -841,6 +841,25 @@ are decided in one place instead of drifting between a template and a claim. `ju
 > <meta name="mercure-replay-max-age" content="600">
 > ```
 
+> ⚠️ **After any interruption, the table re-reads its page of data (3.4).** Whatever was published
+> while the feed was down may never arrive: the hub refused the connection, the replay was past its
+> bound, the hub kept no history, the page came back from the back/forward cache or from a frozen
+> tab. The bus tells its subscribers once the feed is back — `mercureBus.onResync(handler)` — and the
+> table reloads as it would for an event. A connection the browser gives up on (an expired
+> subscriber cookie answers 401, and an `EventSource` never retries a refusal) is opened again with
+> a fresh token, backing off from 2 s to a minute; a signed-out session is left alone.
+>
+> An application's own real-time controller subscribes the same way: a list or a counter re-reads,
+> whatever `{ replayed }` says; a controller that only reacts to one entity's events may trust the
+> replay when `replayed` is true.
+>
+> ```js
+> import mercureBus from '@jul6art/datatable-bundle/services/mercure-bus';
+>
+> this.stopFeed = mercureBus.onMessage((payload) => { /* … */ });
+> this.stopResync = mercureBus.onResync(() => this.reload());
+> ```
+
 JavaScript translations
 -----------------------
 

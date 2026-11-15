@@ -1694,6 +1694,12 @@ export default class extends Controller {
         this._unsubscribeMercure();
         this._pendingEvents = [];
         this._unsubscribe = mercureBus.onMessage((payload) => this._onFeedEvent(payload));
+        // Back from an interruption, the feed may have lost changes to any row: re-read the page of
+        // data, through the same debounce as an event (3.4).
+        this._unsubscribeResync = mercureBus.onResync(() => {
+            this._pendingEvents.push({ resync: true });
+            this._scheduleReloadOrBanner();
+        });
     }
 
     _onFeedEvent(payload) {
@@ -1858,6 +1864,8 @@ export default class extends Controller {
             this._unsubscribe();
             this._unsubscribe = null;
         }
+        this._unsubscribeResync?.();
+        this._unsubscribeResync = null;
         this._hideCoalescenceBanner();
     }
 

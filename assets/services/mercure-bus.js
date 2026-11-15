@@ -36,6 +36,24 @@
  *   - Last-Event-ID is persisted in sessionStorage between navigations so
  *     the hub replays anything emitted during a BRIEF disconnect.
  *   - Native EventSource auto-reconnect handles transient network failures.
+ *   - A connection the browser gives up on — the hub refused it (an expired
+ *     subscriber cookie: 401) or answered anything but a stream — is opened
+ *     again with a fresh token, backing off from 2 s to a minute. Without it,
+ *     the feed of a page left open past the token's lifetime died at the first
+ *     network drop, silently, until the page was reloaded.
+ *
+ * ⚠️ **A subscriber re-reads after any interruption** (3.4): `onResync(handler)`
+ * runs once the feed is back after a drop, a refusal, a page restored from the
+ * back/forward cache or a tab the browser froze — whatever was published in the
+ * meantime may never arrive. A table reloads, a counter re-reads its page. The
+ * handler is told `{ replayed }`: true when the hub was asked for everything
+ * since the last event this tab saw, so the missed events SHOULD come as
+ * ordinary messages — a subscriber that only reacts to one entity's events may
+ * rely on them; one that shows a list re-reads anyway, history is not
+ * guaranteed. The first connection of a page is not a resync: the page was
+ * rendered just before.
+ *
+ *   const stop = mercureBus.onResync(({ replayed }) => this.reload());
  *
  * ⚠️ The replay is bounded in time (default 5 minutes, override with
  * `<meta name="mercure-replay-max-age" content="<seconds>">`). A hub with
@@ -51,23 +69,42 @@
 
 const LAST_EVENT_ID_KEY = 'mercure_last_event_id';
 const DEFAULT_REPLAY_MAX_AGE_SECONDS = 300;
+const RETRY_MIN_MS = 2000;
+const RETRY_MAX_MS = 60000;
 
 class MercureBus {
     constructor() {
         this._eventSource = null;
         this._handlers = new Set();
+        this._resyncHandlers = new Set();
         this._topics = new Set();
         this._patterns = new Set();
         this._connectPromise = null;
         this._initialized = false;
         // `{ id, at }` — the ID and when it was RECEIVED, so its age can be told.
         this._lastEvent = this._readLastEvent();
+        // Set when the feed is interrupted, cleared when it is back and the subscribers were told.
+        this._interrupted = false;
+        this._retryDelay = 0;
+        this._retryTimer = null;
+
+        // A page restored from the back/forward cache, or a frozen tab that resumes, shows what it
+        // showed when it left.
+        window.addEventListener('pageshow', (event) => { if (event.persisted) this._wake(); });
+        document.addEventListener('resume', () => this._wake());
     }
 
     onMessage(handler) {
         this._handlers.add(handler);
         this._ensureConnected();
         return () => { this._handlers.delete(handler); };
+    }
+
+    /** `handler({ replayed })` once the feed is back from an interruption — see the header. */
+    onResync(handler) {
+        this._resyncHandlers.add(handler);
+        this._ensureConnected();
+        return () => { this._resyncHandlers.delete(handler); };
     }
 
     addTopic(topic) {
@@ -89,13 +126,8 @@ class MercureBus {
         const tokenUrl = document.querySelector('meta[name="mercure-token-url"]')?.content;
         if (!hubUrl || !tokenUrl) return;
 
-        let data;
-        try {
-            data = await fetch(tokenUrl, { credentials: 'same-origin' }).then(r => r.json());
-        } catch {
-            return;
-        }
-        if (!data || !Array.isArray(data.subscribed)) return;
+        const data = await this._fetchToken(tokenUrl);
+        if (!data) return;
 
         // The server is the single source of truth — add whatever the
         // token endpoint authorised for this user.
@@ -112,13 +144,8 @@ class MercureBus {
         const tokenUrl = document.querySelector('meta[name="mercure-token-url"]')?.content;
         if (!hubUrl || !tokenUrl) return;
 
-        let data;
-        try {
-            data = await fetch(tokenUrl, { credentials: 'same-origin' }).then(r => r.json());
-        } catch {
-            return;
-        }
-        if (!data || !Array.isArray(data.subscribed)) return;
+        const data = await this._fetchToken(tokenUrl);
+        if (!data) return;
         this._addPatterns(data.patterns);
 
         if (this._eventSource) {
@@ -126,6 +153,57 @@ class MercureBus {
             this._eventSource = null;
         }
         this._openEventSource(hubUrl);
+    }
+
+    /**
+     * The token endpoint's answer — it also sets the subscriber cookie —, or null.
+     *
+     * ⚠️ A network failure is retried when no connection is left: the first one of the page, or a
+     * connection the hub refused. A signed-out session is not — the endpoint redirects to the login
+     * page, and no token will ever come from this page.
+     */
+    async _fetchToken(tokenUrl) {
+        let data;
+        try {
+            const response = await fetch(tokenUrl, { credentials: 'same-origin' });
+            if (response.redirected || response.status === 401 || response.status === 403) return null;
+            data = await response.json();
+        } catch {
+            if (!this._eventSource) {
+                this._interrupted = true;
+                this._scheduleRetry();
+            }
+            return null;
+        }
+
+        return data && Array.isArray(data.subscribed) ? data : null;
+    }
+
+    _scheduleRetry() {
+        clearTimeout(this._retryTimer);
+        this._retryDelay = Math.min(this._retryDelay ? this._retryDelay * 2 : RETRY_MIN_MS, RETRY_MAX_MS);
+        this._retryTimer = setTimeout(() => this._reconnect(), this._retryDelay);
+    }
+
+    /** Back from the back/forward cache, or from a freeze: re-read now, or once the feed reopens. */
+    _wake() {
+        if (!this._initialized) return;
+
+        if (this._eventSource && this._eventSource.readyState !== EventSource.CLOSED) {
+            this._resync({ replayed: false });
+            return;
+        }
+
+        this._interrupted = true;
+        this._eventSource = null;
+        clearTimeout(this._retryTimer);
+        this._reconnect();
+    }
+
+    _resync(info) {
+        for (const handler of this._resyncHandlers) {
+            try { handler(info); } catch { /* ignore handler errors */ }
+        }
     }
 
     _openEventSource(hubUrl) {
@@ -141,17 +219,41 @@ class MercureBus {
             url.searchParams.set('last_event_id', lastEventId);
         }
 
+        // Whether a reconnection of THIS connection asks the hub for history: the ID it was opened
+        // with stays in its URL, and the browser sends the last one it received.
+        let replays = Boolean(lastEventId);
+
         // The token endpoint set the subscriber cookie: `withCredentials` sends it along.
         const es = new EventSource(url.toString(), { withCredentials: true });
-        es.onmessage = (event) => this._dispatch(event);
-        // ⚠️ The browser reconnects on its own and sends the last ID it received, whatever its age.
-        // Past the replay bound, that reconnect would replay hours of history: close it and open a
-        // fresh connection instead, which carries no ID.
+        es.onmessage = (event) => {
+            if (event.lastEventId) replays = true;
+            this._dispatch(event);
+        };
+        es.onopen = () => {
+            this._retryDelay = 0;
+            if (!this._interrupted) return;
+
+            this._interrupted = false;
+            this._resync({ replayed: replays });
+        };
         es.onerror = () => {
+            this._interrupted = true;
+
+            // ⚠️ The browser reconnects on its own and sends the last ID it received, whatever its
+            // age. Past the replay bound, that reconnect would replay hours of history: close it and
+            // open a fresh connection instead, which carries no ID.
             if (es.readyState === EventSource.CONNECTING && this._lastEvent && !this._replayableId()) {
                 es.close();
                 this._eventSource = null;
                 this._reconnect();
+                return;
+            }
+
+            // ⚠️ A connection the hub refused, or answered with anything but a stream, is CLOSED for
+            // good: the browser never retries it. A new token, then a new connection.
+            if (es.readyState === EventSource.CLOSED && this._eventSource === es) {
+                this._eventSource = null;
+                this._scheduleRetry();
             }
         };
         this._eventSource = es;
