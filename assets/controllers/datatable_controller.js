@@ -8,7 +8,7 @@ import { select2Language } from '../select2-language';
 import { ajaxQuery, resolveOrderKey } from '../select2-config';
 import { installActionsDropdown } from '../services/dropdown';
 import { evaluateCondition } from '../services/condition';
-import { isOrganizationFeedTopic } from '../services/feed-topic';
+import { feedMatchesCollection, isOrganizationFeedTopic } from '../services/feed-topic';
 import { openPreviewSheet, closePreviewSheet } from '../services/preview-sheet';
 import { escapeHtml, escapeAttr, encodePathSegment, safeUrlPath } from '../services/escape';
 
@@ -1786,19 +1786,13 @@ export default class extends Controller {
 
     _feedMatchesTable(payload) {
         // Org-scoped tables pass a filter via query string (e.g.
-        // `/api/users?organization=/api/organizations/5`). Strip it before
-        // matching — otherwise `/api/users/12`.startsWith(
-        // `/api/users?organization=.../`) is false and every event is
-        // dropped silently.
+        // `/api/users?organization=/api/organizations/5`): `feedMatchesCollection()` strips it
+        // before matching — otherwise every event was dropped silently.
         // `feedIri` wins: a collection served at another address than its items (a moderation
         // list, a second GetCollection) never matched — every event was dropped silently.
-        const baseApiUrl = (this.feedIriValue || this.apiUrlValue).split('?')[0];
-        if (payload.iri && typeof payload.iri === 'string') {
-            return payload.iri.startsWith(baseApiUrl + '/') || payload.iri === baseApiUrl;
-        }
-        // Fallback: no IRI (non-ApiPlatform entity) — match by type against table resource slug
-        const slug = baseApiUrl.split('/').pop() || '';
-        return slug.toLowerCase().startsWith(String(payload.type).toLowerCase());
+        // Without an IRI (a `bulk` event), the type is matched on letters and digits only (3.4.1):
+        // `WorkOrder` against `work_orders`.
+        return feedMatchesCollection(this.feedIriValue || this.apiUrlValue, payload);
     }
 
     _scheduleReloadOrBanner() {

@@ -35,7 +35,7 @@ final class FeedIriSourceTest extends TestCase
     public function testTheFeedIriWinsOverTheCollectionsAddress(): void
     {
         self::assertMatchesRegularExpression(
-            '/const baseApiUrl = \(this\.feedIriValue \|\| this\.apiUrlValue\)\.split/',
+            '/feedMatchesCollection\(this\.feedIriValue \|\| this\.apiUrlValue, payload\)/',
             self::source(),
             'Le préfixe déclaré doit primer sur l\'adresse de la collection pour apparier un événement.',
         );
