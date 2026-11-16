@@ -8,7 +8,7 @@ import { select2Language } from '../select2-language';
 import { ajaxQuery, resolveOrderKey } from '../select2-config';
 import { installActionsDropdown } from '../services/dropdown';
 import { evaluateCondition } from '../services/condition';
-import { feedMatchesCollection, isOrganizationFeedTopic } from '../services/feed-topic';
+import { feedMatchesCollection, feedTargetsRow, isOrganizationFeedTopic } from '../services/feed-topic';
 import { openPreviewSheet, closePreviewSheet } from '../services/preview-sheet';
 import { escapeHtml, escapeAttr, encodePathSegment, safeUrlPath } from '../services/escape';
 
@@ -1730,34 +1730,13 @@ export default class extends Controller {
     /**
      * Returns true when the event payload references a row currently
      * rendered on the DataTable's active page. Used to short-circuit
-     * reloads triggered by `updated` events on invisible rows.
+     * reloads triggered by `updated` events on invisible rows. The IRI is
+     * compared first (3.4.2): see `feedTargetsRow()`.
      */
     _feedMatchesVisibleId(payload) {
         if (!this.dataTable) return false;
 
-        const id = this._resolvePayloadId(payload);
-        if (id === null) return false;
-
-        const rows = this.dataTable.rows({ page: 'current' }).data().toArray();
-        return rows.some(row => {
-            const rowId = row?.id ?? row?.['@id'];
-            if (rowId === undefined || rowId === null) return false;
-            const normalised = typeof rowId === 'string' && rowId.startsWith('/api/')
-                ? rowId.split('/').pop()
-                : rowId;
-            return String(normalised) === id;
-        });
-    }
-
-    _resolvePayloadId(payload) {
-        if (payload.id !== undefined && payload.id !== null && payload.id !== '') {
-            return String(payload.id);
-        }
-        if (typeof payload.iri === 'string' && payload.iri !== '') {
-            const tail = payload.iri.split('/').pop();
-            return tail ? String(tail) : null;
-        }
-        return null;
+        return feedTargetsRow(payload, this.dataTable.rows({ page: 'current' }).data().toArray());
     }
 
     /**

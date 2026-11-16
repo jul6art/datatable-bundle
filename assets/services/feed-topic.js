@@ -42,3 +42,41 @@ export function feedMatchesCollection(collection, payload) {
 
     return type !== '' && letters(base.split('/').pop()).startsWith(type);
 }
+
+/**
+ * Whether an `updated` or `deleted` event concerns one of the rows on the page — when it does not,
+ * the table skips the reload.
+ *
+ * ⚠️ The IRI first. A resource API Platform serves by a UUID (`/api/memberships/01a1…`) still has a
+ * database id, and the event carries it (`id: 4`), which no row shows: compared by id alone, the
+ * event never matched a row, and every update or deletion of such a resource was dropped — the
+ * table stayed stale until it was reloaded (3.4.2, the member table of an organisation). The id
+ * comparison is kept beside it, so a row that matched before still does.
+ *
+ * @param {{id?: unknown, iri?: unknown}} payload
+ * @param {Array<Record<string, unknown>>} rows the rows of the page, as DataTables holds them
+ * @returns {boolean}
+ */
+export function feedTargetsRow(payload, rows) {
+    const iri = typeof payload.iri === 'string' && payload.iri !== '' ? payload.iri : null;
+    let id = null;
+    if (payload.id !== undefined && payload.id !== null && payload.id !== '') {
+        id = String(payload.id);
+    } else if (iri !== null) {
+        id = iri.split('/').pop() || null;
+    }
+
+    return rows.some((row) => {
+        if (iri !== null && row?.['@id'] === iri) {
+            return true;
+        }
+
+        const rowId = row?.id ?? row?.['@id'];
+        if (id === null || rowId === undefined || rowId === null) {
+            return false;
+        }
+        const normalised = typeof rowId === 'string' && rowId.startsWith('/api/') ? rowId.split('/').pop() : rowId;
+
+        return String(normalised) === id;
+    });
+}

@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { feedMatchesCollection, isOrganizationFeedTopic } from '../../assets/services/feed-topic.js';
+import { feedMatchesCollection, feedTargetsRow, isOrganizationFeedTopic } from '../../assets/services/feed-topic.js';
 
 test('an organisation feed is one, prefixed or not', () => {
     assert.equal(isOrganizationFeedTopic('/organizations/7/feed'), true);
@@ -46,4 +46,25 @@ test('a bulk event of another type, or of no type, matches nothing', () => {
     assert.equal(feedMatchesCollection('/api/work_orders', {type: 'WorkOrderSignature', iri: null}), false);
     assert.equal(feedMatchesCollection('/api/work_orders', {iri: null}), false);
     assert.equal(feedMatchesCollection('/api/work_orders', {type: '', iri: null}), false);
+});
+
+// 3.4.2: a resource served by a UUID carries its database id in the event, which no row shows —
+// compared by id alone, every update or deletion of it was dropped.
+test('an event reaches the row whose IRI it names, even when its id is the database one', () => {
+    const rows = [{'@id': '/api/memberships/01a1d6b2-f5b3-71cf-93eb-230e9ff3cbff', role: 'MEMBER'}];
+    assert.equal(feedTargetsRow({id: 4, iri: '/api/memberships/01a1d6b2-f5b3-71cf-93eb-230e9ff3cbff'}, rows), true);
+    assert.equal(feedTargetsRow({id: 5, iri: '/api/memberships/01a1d6b2-0000-0000-0000-000000000000'}, rows), false);
+});
+
+test('a row that matched by id still does', () => {
+    assert.equal(feedTargetsRow({id: 63, iri: '/api/items/63'}, [{id: 63, '@id': '/api/items/63'}]), true);
+    assert.equal(feedTargetsRow({id: 63, iri: '/api/admin/items/63'}, [{id: 63, '@id': '/api/items/63'}]), true);
+    assert.equal(feedTargetsRow({id: 12}, [{'@id': '/api/work_orders/12'}]), true);
+    assert.equal(feedTargetsRow({iri: '/api/work_orders/12'}, [{id: 12}]), true);
+});
+
+test('an event that names no row on the page targets none', () => {
+    assert.equal(feedTargetsRow({id: 7, iri: '/api/items/7'}, [{id: 63, '@id': '/api/items/63'}]), false);
+    assert.equal(feedTargetsRow({}, [{id: 63}]), false);
+    assert.equal(feedTargetsRow({id: 7}, []), false);
 });
